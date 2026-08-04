@@ -1,0 +1,50 @@
+{
+  "LOOKBACK": 96,
+  "HORIZON": 96,
+  "SEQ_FEATURES": [
+    "pv_kw",
+    "shortwave_radiation",
+    "direct_radiation",
+    "diffuse_radiation",
+    "cloud_cover",
+    "temperature_2m",
+    "wind_speed_10m",
+    "tod_sin",
+    "tod_cos",
+    "doy_sin",
+    "doy_cos"
+  ],
+  "NEXT_WEATHER": [
+    "shortwave_radiation",
+    "direct_radiation",
+    "diffuse_radiation",
+    "cloud_cover",
+    "temperature_2m",
+    "wind_speed_10m",
+    "tod_sin",
+    "tod_cos",
+    "doy_sin",
+    "doy_cos"
+  ],
+  "WEATHER_VARS": [
+    "shortwave_radiation",
+    "direct_radiation",
+    "diffuse_radiation",
+    "cloud_cover",
+    "temperature_2m",
+    "wind_speed_10m"
+  ],
+  "TIME_FEATS": [
+    "tod_sin",
+    "tod_cos",
+    "doy_sin",
+    "doy_cos"
+  ],
+  "TEST_DAYS": 90,
+  "location": {
+    "lat": 49.70673,
+    "lon": 6.48714
+  },
+  "resolution_minutes": 15,
+  "target": "PV_TotalProduction_kW"
+}

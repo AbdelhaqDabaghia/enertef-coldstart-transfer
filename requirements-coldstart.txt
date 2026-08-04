@@ -1,0 +1,17 @@
+# Cold-start continual-learning transfer protocol (EV demand, Luxembourg -> UK).
+# Python 3.12. (The root requirements.txt covers the separate DFL/MPC torch work.)
+#
+# GPU (recommended): install TensorFlow with bundled CUDA inside WSL2 Ubuntu:
+#     pip install "tensorflow[and-cuda]"
+# and run via scripts/wsl_run.sh (sets LD_LIBRARY_PATH for the NVIDIA libs).
+# On native Windows, TF>=2.11 is CPU-only (no GPU); everything still runs, slower.
+
+tensorflow>=2.19            # 2.21 used; the [and-cuda] extra enables GPU in WSL2
+scikit-learn>=1.3           # frozen production scalers were fit with sklearn 1.x
+pandas>=2.0
+numpy>=1.26
+scipy>=1.11                 # Wasserstein / MMD domain-distance metrics
+matplotlib>=3.7             # figures (coldstart_transfer/analysis.py)
+joblib>=1.3                 # load ev_scalers.joblib
+requests>=2.31              # Open-Meteo source-weather re-fetch (build_lux_source.py)
+pg8000>=1.31                # pure-Python PostgreSQL driver for the source export

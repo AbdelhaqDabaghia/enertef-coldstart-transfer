@@ -1,0 +1,22 @@
+# venvs / caches / scratch
+*_env/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+scratchpad/
+# secrets (never commit)
+*.pem
+*.pem.key
+.env
+.env.*
+*secret*
+*credentials*
+# OS / build
+.DS_Store
+Thumbs.db
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.pdf

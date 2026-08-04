@@ -1,0 +1,605 @@
+%=====================================================================
+%  Cold-Start Continual-Learning Transfer for EV Demand Forecasting
+%  IEEE conference style. Compiles on Overleaf (pdfLaTeX).
+%  Self-contained: manual thebibliography, figures in ./figures/.
+%=====================================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
+
+\newcommand{\nrmse}{\mathrm{nRMSE}}
+\newcommand{\thesource}{\mathcal{D}_{\mathrm{S}}}
+\newcommand{\thetarget}{\mathcal{D}_{\mathrm{T}}}
+
+\begin{document}
+
+\title{When Simple Beats Sophisticated: A Cold-Start Continual-Learning
+Transfer Protocol for EV Demand Forecasting (Luxembourg $\rightarrow$ UK)}
+
+\author{\IEEEauthorblockN{Abdelhaq Dabaghia\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}EnerTEF, Service~1 --- Energy Community Forecasting\\
+Email: (corresponding author)}}
+
+\maketitle
+
+\begin{abstract}
+We study whether a data-scarce target site can bootstrap an electric-vehicle
+(EV) charging-demand forecaster by transferring weights and/or Fisher-importance
+estimates from a mature production model, and then keep adapting without
+forgetting the source domain. Unlike most continual-learning (CL) studies that
+rely on synthetic task splits, we validate on a \emph{real, published,
+independent} target: the UK \emph{Electric Nation} smart-charging trial, with
+features made column-for-column identical to a deployed Luxembourg CNN--LSTM.
+We implement a single parameterised protocol covering six conditions
+(from-scratch, warm-start, Elastic Weight Consolidation~(EWC) with source or
+target Fisher, and replay) and evaluate plasticity (target error) against
+stability (source retention) over multiple data budgets and three seeds.
+Three findings emerge. (i)~\textbf{Warm-start transfer helps substantially}
+(${\sim}40\%$ lower normalised RMSE than training from scratch at every budget).
+(ii)~\textbf{Replay dominates the stability--plasticity trade-off}; EWC adds
+nothing over a plain warm-start fine-tune. (iii)~In a controlled ablation --- the
+paper's core contribution --- we show the transferred Fisher's apparent harm is a
+\emph{scale artifact} (the source Fisher is ${\sim}211\times$ larger); once scales
+are equalised, the Fisher's \emph{origin} does not matter, and \emph{EWC itself}
+provides no benefit for this transfer. A dedicated bench (true empirical Fisher,
+per-layer normalisation, EWC$+$replay hybrid) and a simple learning-rate/epoch
+sweep confirm that \emph{no} regulariser variant reaches replay's retention.
+We then \textbf{replicate the entire protocol on a second, physically distinct
+task} --- PV generation forecasting (Luxembourg $\rightarrow$ a real published
+household in Konstanz, Germany) --- and obtain the same verdict, showing the
+result is not EV-specific. We characterise each domain shift (dominated by a
+$6\times$ demand-scale gap for EV, $50\times$ for PV) and release a fully
+reproducible, GPU-accelerated pipeline.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Continual learning, transfer learning, catastrophic forgetting, elastic weight
+consolidation, experience replay, EV charging demand, load forecasting.
+\end{IEEEkeywords}
+
+%=====================================================================
+\section{Introduction}
+%=====================================================================
+Data-driven load forecasters deployed in energy communities operate in
+\emph{non-stationary} environments: consumption patterns drift, new assets come
+online, and new sites must be served with little or no local history. Two
+learning paradigms address this. \emph{Transfer learning} reuses a model trained
+on a data-rich source to bootstrap a data-scarce target~\cite{PanYang2010}.
+\emph{Continual learning} (CL) lets a deployed model keep adapting to new data
+while resisting \emph{catastrophic forgetting}~\cite{McCloskey1989,French1999}
+of previously acquired knowledge. Our production system (Service~1 of an Horizon
+Europe project) already combines both: an EV CNN--LSTM demand forecaster for a
+Luxembourg energy community is nightly fine-tuned with Elastic Weight
+Consolidation~(EWC)~\cite{Kirkpatrick2017} and automatically promoted.
+
+This paper asks a deployment-relevant question: \emph{can a new, low-data target
+site bootstrap its forecaster by transferring weights and/or Fisher importance
+from the mature Luxembourg model, and then continue to adapt via EWC without
+losing this transferred knowledge?} Crucially, we validate on a \emph{real,
+published, independent} target --- the UK \emph{Electric Nation} home
+smart-charging trial --- rather than on a synthetic split of our own data, which
+is the norm in the CL literature.
+
+\noindent\textbf{Contributions.}
+\begin{enumerate}
+\item A \emph{single parameterised protocol} instantiating six conditions
+(from-scratch, warm-start, EWC with source/target Fisher, and replay) on an
+industrial architecture, with exact feature/scaler fidelity to a deployed model
+(verified to machine precision).
+\item A rigorous \emph{stability--plasticity} evaluation on a real cross-country
+transfer, over data budgets $N\!\in\!\{1,7,30,60,90\}$ days and three seeds.
+\item A \emph{Fisher-transferability ablation with a fairness control}: we show
+the source and target Fisher differ ${\sim}211\times$ in scale, and that once
+equalised, the Fisher's origin has no measurable effect --- correcting a
+tempting but wrong ``transferred Fisher is harmful'' conclusion.
+\item An honest \emph{negative result}, hardened by an improved-EWC bench (true
+empirical Fisher, per-layer normalisation, EWC$+$replay) and a learning-rate/epoch
+baseline: \textbf{simple warm-start$+$replay beats every EWC variant tested}.
+\item A precise \emph{domain-shift characterisation} and a fully reproducible,
+GPU-accelerated pipeline.
+\end{enumerate}
+
+%=====================================================================
+\section{Related Work}
+%=====================================================================
+\textbf{Continual learning} methods fall into three families~\cite{DeLange2021}:
+\emph{regularisation-based} methods penalise changes to parameters deemed
+important for past tasks --- EWC~\cite{Kirkpatrick2017} via a diagonal Fisher,
+Synaptic Intelligence~\cite{Zenke2017}, Memory Aware Synapses~\cite{Aljundi2018},
+and Learning without Forgetting~\cite{LiHoiem2017}; \emph{replay/rehearsal}
+methods re-expose the model to stored or generated past samples ---
+iCaRL~\cite{Rebuffi2017}, Experience Replay~\cite{Rolnick2019}, and Dark
+Experience Replay~(DER++)~\cite{Buzzega2020}; and \emph{parameter-isolation}
+methods dedicate distinct capacity per task. Online/consolidated EWC variants
+such as Progress~\&~Compress~\cite{Schwarz2018} maintain a running Fisher.
+
+\textbf{CL and transfer for energy forecasting.}
+Continual learning has been increasingly applied to load and building-energy
+forecasting to cope with concept drift without storing large
+histories~\cite{ContLoadPartsCleaning2025,BuildingEnergyCL2023,OODLoadCovid2023}.
+Recent work benchmarks CL under out-of-distribution shifts (e.g.\ COVID-19 load
+regimes)~\cite{OODLoadCovid2023} and for real-world non-stationary power
+systems~\cite{PracticalCLEnergy2026}, and a first survey targets CL for time
+series~\cite{CLTimeSeriesSurvey2024}. \textbf{Transfer learning for EV/charging
+demand} is motivated by data scarcity at new sites: knowledge is transferred from
+data-rich to data-limited regions~\cite{EVTransferGaps2025}, sometimes combined
+with clustering to handle behavioural heterogeneity~\cite{EVScarceCluster2025}.
+
+\textbf{Gap.} Most CL/transfer forecasting studies use synthetic splits or a
+single method, and rarely (a)~validate transfer on an \emph{independent published}
+target, (b)~jointly measure plasticity \emph{and} source retention, or (c)~control
+for the \emph{scale} of the importance matrix when comparing Fisher variants. We
+address all three, and report a rigorous negative result on EWC for this transfer.
+
+%=====================================================================
+\section{Problem Setup and Data}
+%=====================================================================
+\subsection{Source and target domains}
+The \emph{source} $\thesource$ is the Luxembourg production domain: aggregated EV
+charging power (two chargers, EMOB1$+$EMOB2) at $15$-min resolution over the
+period both chargers are active (2024-09-10 to 2026-01-18; $47{,}524$ steps),
+with the earliest $38{,}883$ steps used to fit the production feature scalers and
+the last $90$ days held out. The \emph{target} $\thetarget$ is the UK
+\emph{Electric Nation} trial: ${\sim}72$ aggregated home chargers, converted from
+Amps to kW assuming $230$\,V single-phase, at $15$-min resolution over
+2017-06-28 to 2018-12-16 ($51{,}467$ steps). Weather is drawn from the Open-Meteo
+archive: for the target, a single representative point (Bristol) stands in for the
+whole trial service area; for the source, Copal~Dudelange
+($49.71^\circ$N, $6.49^\circ$E).
+
+\subsection{Features}
+Each step carries the $21$ sequential features used by the production model, in a
+fixed order: \texttt{ev\_kw}; lags $\{1,4,96,672\}$; rolling means over
+$\{1,6,24\}$\,h; six weather variables (shortwave/direct/diffuse radiation, cloud
+cover, temperature, wind speed); and seven cyclic time encodings (time-of-day,
+day-of-year, day-of-week sines/cosines, weekend flag). The ``next-step''
+exogenous vector is the same list minus \texttt{ev\_kw} ($20$ features). We reuse
+the \emph{frozen} production \texttt{MinMaxScaler}s for all conditions; our
+reconstruction reproduces every scaler min/max to machine precision, and the
+train-row count reproduces the frozen $n_{\mathrm{samples}}=38{,}883$ exactly,
+guarding against silent feature/scaler drift.
+
+\subsection{Domain shift}
+Table~\ref{tab:domain} reports the source-vs-target shift. It is dominated by the
+demand variable itself: a $6\times$ scale gap and the largest normalised
+$1$-Wasserstein distance ($0.62$), together with wind speed ($0.63$, coastal
+Bristol vs.\ inland Dudelange). Radiation, cloud and temperature transfer well
+(normalised Wasserstein $0.05$--$0.23$; standardised weather maximum mean
+discrepancy MMD$^2=0.034$~\cite{Gretton2012}).
+
+\begin{table}[t]
+\centering
+\caption{Source (LU) vs.\ target (UK) domain shift. $W_{\mathrm{norm}}$ is the
+$1$-Wasserstein distance on marginals after pooled-std normalisation.}
+\label{tab:domain}
+\begin{tabular}{lccc}
+\toprule
+Variable & $W_{\mathrm{norm}}$ & LU (mean$\pm$std) & UK (mean$\pm$std)\\
+\midrule
+\texttt{ev\_kw}            & \textbf{0.62} & $40.7\pm66.5$ & $16.8\pm15.2$\\
+shortwave rad.             & 0.05 & $124\pm202$ & $122\pm189$\\
+direct rad.                & 0.07 & $76\pm154$  & $66\pm134$\\
+diffuse rad.               & 0.10 & $48\pm70$   & $55\pm78$\\
+cloud cover                & 0.10 & $66\pm40$   & $66\pm37$\\
+temperature                & 0.23 & $10.6\pm7.3$& $11.2\pm5.9$\\
+wind speed                 & \textbf{0.63} & $10.9\pm6.1$& $15.6\pm7.8$\\
+\midrule
+\multicolumn{4}{l}{weather MMD$^2=0.034$ \quad ev\_kw scale ratio $=6\times$}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%=====================================================================
+\section{Method}
+%=====================================================================
+\subsection{Forecaster architecture}
+We reproduce the deployed two-branch EV CNN--LSTM exactly
+(Fig.~\ref{fig:arch}): a sequential branch takes the $(672,21)$ lookback through
+two causal \texttt{Conv1D}$(64,k{=}5)$ layers and an \texttt{LSTM}$(64)$; a
+next-step branch takes the $(20)$ exogenous vector through a
+\texttt{Dense}$(64)$; the two are concatenated and passed through
+\texttt{Dense}$(128)\!\rightarrow\!\texttt{Dense}(1)$ with dropout. The head is
+linear; non-negativity is enforced post-hoc. Loss is Huber ($\delta{=}0.5$),
+optimiser Adam. A construction-vs-deployment fidelity check confirms our builder
+reproduces the promoted model's outputs to $\max|\Delta|=0$.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw,rounded corners=2pt,minimum height=6mm,minimum width=15mm,align=center,fill=blue!6},
+  io/.style ={draw,rounded corners=2pt,minimum height=6mm,minimum width=15mm,align=center,fill=gray!12},
+  a/.style={-{Latex[length=2mm]}}]
+\node[io] (seq) {seq input\\$(672,21)$};
+\node[box,right=4mm of seq] (c1) {Conv1D\\$64,k5$};
+\node[box,right=3mm of c1] (c2) {Conv1D\\$64,k5$};
+\node[box,right=3mm of c2] (lstm) {LSTM\\$64$};
+\node[io,below=8mm of seq] (nxt) {next input\\$(20)$};
+\node[box,right=4mm of nxt] (d1) {Dense\\$64$};
+\node[box,right=18mm of d1] (cat) {concat};
+\node[box,right=3mm of cat] (d2) {Dense\\$128$};
+\node[box,right=3mm of d2] (out) {Dense\\$1$ (lin.)};
+\draw[a] (seq)--(c1); \draw[a] (c1)--(c2); \draw[a] (c2)--(lstm);
+\draw[a] (nxt)--(d1);
+\draw[a] (lstm.east) -- ++(4mm,0) |- (cat.west);
+\draw[a] (d1.east) -- ++(4mm,0) |- (cat.west);
+\draw[a] (cat)--(d2); \draw[a] (d2)--(out);
+\end{tikzpicture}
+\caption{Two-branch EV CNN--LSTM (deployed architecture), reproduced to machine
+precision for weight transfer.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Cold-start transfer protocol}
+Let $\theta^{\star}$ be the transferred production weights. We define six
+conditions, all sharing the frozen scalers and evaluated on a fixed final
+$14$-day target holdout:
+\emph{B0} from scratch (random init);
+\emph{B1} warm-start $+$ EWC with a Fisher estimated on the \emph{source};
+\emph{B2/B3} warm-start, plain fine-tune (no EWC);
+\emph{B4} warm-start $+$ EWC with a Fisher \emph{re-estimated on the target};
+\emph{B5} warm-start $+$ replay of source samples mixed into each batch.
+For the ``cold-start'' regime, only the first $N$ days of the target stream are
+available for training.
+
+\subsection{EWC objective and Fisher estimators}
+The EWC objective reuses the production form
+\begin{equation}
+\mathcal{L}_{\mathrm{EWC}}(\theta)=\mathcal{L}_{\mathrm{data}}(\theta)
++\tfrac{\lambda}{2}\sum_i F_{ii}\,(\theta_i-\theta^{\star}_i)^2 ,
+\end{equation}
+with $\lambda$ the regularisation strength. The production Fisher is an
+output-sensitivity proxy over $B$ mini-batches of $M{=}500$ sampled points,
+\begin{equation}
+F_{ii}=\frac{1}{B}\sum_b\!\left[\frac{\partial}{\partial\theta_i}
+\Big(\frac{1}{|\mathrm{batch}_b|}\sum_j \hat{y}_j^2\Big)\right]^{2}.
+\label{eq:proxyfisher}
+\end{equation}
+As a control we also use the \emph{true empirical} diagonal Fisher, the mean
+squared gradient of the per-example Huber loss w.r.t.\ each parameter,
+\begin{equation}
+\tilde F_{ii}=\frac{1}{M}\sum_{m}\Big(\frac{\partial \ell(\theta;x_m,y_m)}
+{\partial \theta_i}\Big)^{2}.
+\label{eq:empfisher}
+\end{equation}
+For replay, the loss adds $\beta\,\mathcal{L}_{\mathrm{data}}(\theta;\text{source
+batch})$.
+
+\subsection{Fisher-scale fairness control}
+Comparing B1 (source Fisher) and B4 (target Fisher) at a shared $\lambda$ is
+confounded if the two Fishers differ in scale: the effective regularisation would
+differ. We therefore also \emph{normalise} each Fisher to unit mean before
+applying $\lambda$ (globally, or per layer), which makes $\lambda$'s effective
+strength comparable across Fisher origins, and we sweep $\lambda$ for both.
+
+\subsection{Metrics}
+Plasticity is the target normalised RMSE,
+$\nrmse=\mathrm{RMSE}/\overline{y}$ (kW, un-scaled) on the target holdout.
+Stability is the \emph{source-retention} $\nrmse$: the same adapted model
+evaluated on a fixed Luxembourg holdout, without further training. We also report
+\emph{data-to-threshold}: the smallest $N$ at which a condition first drops below
+a chosen $\nrmse$ gate.
+
+%=====================================================================
+\section{Experiments and Results}
+%=====================================================================
+\textbf{Setup.} All runs use Adam ($10^{-4}$), $10$ epochs, batch $64$, and three
+seeds; the pipeline runs on a single NVIDIA RTX~5070 (TensorFlow~$2.21$ /
+CUDA~$12.9$ under WSL2). A pre-flight sanity check confirms the reloaded
+production model yields a non-degenerate MAE ($18.6$~kW on the $7$-day source
+holdout) far below the frozen baseline ($42.0$~kW), validating the scaler and
+architecture path before any transfer.
+
+\subsection{RQ1 --- Cold-start transfer benefit}
+Fig.~\ref{fig:rq1} and Table~\ref{tab:rq1} show that warm-start (B3/B4) reduces
+target $\nrmse$ by ${\sim}40\%$ versus from-scratch (B0) at \emph{every} budget,
+with small, well-separated variance. From-scratch is unstable across $N$; the
+warm-started models plateau near $0.52$ from $N{=}30$ on. Adding EWC (B4) is
+statistically indistinguishable from a plain warm-start (B3).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/fig_rq1_coldstart.png}
+\caption{RQ1: target $\nrmse$ vs.\ available target data $N$ (log scale, mean$\pm$std
+over 3 seeds). Warm-start ($\text{B3}/\text{B4}$) strongly outperforms
+from-scratch (B0).}
+\label{fig:rq1}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{RQ1 target $\nrmse$ (mean$\pm$std, 3 seeds).}
+\label{tab:rq1}
+\begin{tabular}{lccccc}
+\toprule
+$N$ (days) & 1 & 7 & 30 & 60 & 90\\
+\midrule
+B0 (scratch)   & $1.54\pm.20$ & $1.26\pm.08$ & $0.92\pm.05$ & $1.04\pm.10$ & $0.99\pm.11$\\
+B3 (warm)      & $0.91\pm.04$ & $0.92\pm.01$ & $\mathbf{0.53\pm.02}$ & $0.54\pm.02$ & $0.52\pm.03$\\
+B4 (warm+EWC)  & $0.91\pm.04$ & $0.92\pm.02$ & $0.53\pm.02$ & $0.55\pm.03$ & $0.53\pm.02$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{RQ2 --- Stability--plasticity trade-off}
+At a data-rich checkpoint ($N{=}30$), we measure both target error and source
+retention (Fig.~\ref{fig:rq2}, Table~\ref{tab:rq2}). \textbf{Replay (B5) wins the
+trade-off}: it achieves by far the best source retention ($0.40$ vs.\ $0.56$ for
+warm-start) at a modest target cost. EWC (B1/B4) does not improve retention over a
+plain warm-start; from-scratch (B0) is worst on both axes (it never saw the
+source).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/fig_rq2_tradeoff.png}
+\caption{RQ2: stability--plasticity trade-off at $N{=}30$ (mean$\pm$std). Lower-left
+is better. Replay (B5) alone reaches low source-retention error.}
+\label{fig:rq2}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{RQ2/RQ3 at $N{=}30$ (mean$\pm$std, 3 seeds).}
+\label{tab:rq2}
+\begin{tabular}{lcc}
+\toprule
+Condition & target $\nrmse$ & source-retention $\nrmse$\\
+\midrule
+B0 from-scratch          & $0.92\pm.05$ & $1.51\pm.15$\\
+B3 warm, no-EWC          & $\mathbf{0.52\pm.02}$ & $0.56\pm.03$\\
+B1 warm+EWC (src Fisher) & $0.78\pm.01$ & $0.62\pm.01$\\
+B4 warm+EWC (tgt Fisher) & $0.53\pm.02$ & $0.56\pm.03$\\
+B5 warm+replay           & $0.68\pm.02$ & $\mathbf{0.40\pm.02}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{RQ3 --- Fisher transferability, with a fairness control}
+Naively, B1 (source Fisher) looks much worse than B4 (target Fisher) on both axes
+(Table~\ref{tab:rq2}). But the source Fisher's raw scale is
+\emph{$211\times$ larger} than the target Fisher's (sum/mean ratio; $30\times$ in
+$L_2$) --- a direct consequence of the $6\times$ demand-scale gap propagating
+through Eq.~\eqref{eq:proxyfisher}. At a shared $\lambda$, B1 therefore
+over-regularises ${\sim}211\times$ harder. Normalising each Fisher to unit mean
+and sweeping $\lambda$ (Fig.~\ref{fig:rq3}, Table~\ref{tab:rq3}) removes the
+confound: B1 and B4 become \emph{comparable} (B1 even marginally better on
+target), and \emph{neither} beats the plain warm-start. \textbf{The Fisher's
+origin does not matter once scales are equalised; EWC itself provides no benefit
+for this transfer.} This corrects the tempting but wrong conclusion that the
+transferred Fisher is intrinsically harmful.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\linewidth]{figures/fig_rq3_fisher.png}
+\caption{RQ3: source vs.\ target Fisher at matched (raw) $\lambda{=}100$. The gap
+is a scale artifact (see text); it vanishes under normalisation.}
+\label{fig:rq3}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{RQ3 control: \emph{normalised} Fisher, $\lambda$ sweep at $N{=}30$.}
+\label{tab:rq3}
+\begin{tabular}{lcccc}
+\toprule
+$\lambda$ & \multicolumn{2}{c}{B1 (src Fisher)} & \multicolumn{2}{c}{B4 (tgt Fisher)}\\
+ & target & retention & target & retention\\
+\midrule
+$10$    & 0.750 & 0.555 & 0.776 & 0.566\\
+$100$   & 0.758 & 0.554 & 0.762 & 0.516\\
+$1000$  & 0.764 & 0.555 & 0.768 & 0.525\\
+$10000$ & 0.765 & 0.555 & 0.772 & 0.529\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Improved-EWC bench and simple baselines}
+To pre-empt the objection that a better-designed EWC would win, we bench three
+honest variants against the B3/B5 baselines (Fig.~\ref{fig:bench},
+Table~\ref{tab:bench}): \emph{V1} EWC with the true empirical Fisher
+(Eq.~\eqref{eq:empfisher}); \emph{V2} per-layer normalised Fisher; \emph{V3} an
+EWC$+$replay hybrid. \textbf{None beats warm-start on plasticity or replay on
+retention}; the hybrid even degrades pure replay. Finally, a simple
+learning-rate/epoch sweep (a trivial ``adapt less, forget less'' knob) is
+\emph{strictly dominated}: reducing LR or epochs worsens both axes, and its best
+retention ($0.56$) never approaches replay's ($0.40$). Thus replay's retention
+advantage is real and not reproducible by simple under-regularisation or by EWC.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/fig_bench_ewc.png}
+\caption{Improved-EWC bench at $N{=}30$: every EWC variant lands up-and-right of
+(i.e.\ worse than) warm-start and replay.}
+\label{fig:bench}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{EWC-variant bench and LR/epoch baseline ($N{=}30$, 3 seeds).}
+\label{tab:bench}
+\begin{tabular}{lcc}
+\toprule
+Method & target $\nrmse$ & retention $\nrmse$\\
+\midrule
+B3 warm (baseline)          & $\mathbf{0.53}$ & $0.56$\\
+B5 replay (baseline)        & $0.68$ & $\mathbf{0.40}$\\
+V1 empirical Fisher (best)  & $0.77$ & $0.53$\\
+V2 per-layer Fisher (best)  & $0.76$ & $0.53$\\
+V3 EWC+replay hybrid        & $0.71$ & $0.48$\\
+LR/epoch sweep (best ret.)  & $0.52$ & $0.56$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%=====================================================================
+\section{Second Task: PV Generation (Luxembourg $\rightarrow$ Konstanz)}
+%=====================================================================
+To test whether our conclusions generalise beyond EV demand, we replicate the
+\emph{entire} protocol on a second, physically distinct task --- PV generation
+forecasting --- with the deployed PV LSTM (LOOKBACK $96$, $11$ features, $148{,}161$
+parameters; our builder reproduces it to $\max|\Delta|{=}0$). The source is the
+Luxembourg community PV (\texttt{ECC\_master}, matched to the frozen scaler
+exactly: $71{,}043$ train steps); the \emph{target} is a real, published,
+\emph{independent} site: household \texttt{DE\_KN\_residential3} of the OPSD
+household dataset~\cite{OPSD2020} (Konstanz, Germany), a cumulative-energy meter
+we convert to power ($90{,}217$ $15$-min steps, 2016--2018), with weather
+re-fetched from Open-Meteo. This is a \emph{near}-climate transfer (both temperate
+northern Europe) but with an even larger target-scale gap
+($50\times$: a $751$\,kW community array vs.\ a ${\sim}15$\,kW rooftop). The
+domain shift is again dominated by the generation variable
+($W_{\mathrm{norm}}{=}0.75$) while weather transfers well
+(MMD$^2{=}0.027$)~\cite{Gretton2012}.
+
+Results \textbf{corroborate the EV findings} (Fig.~\ref{fig:pvrq1},
+Table~\ref{tab:pv}). \emph{(i)}~Warm-start is essential: it cuts target RMSE by
+${\sim}97\%$ vs.\ from-scratch (which, with random init on scarce data and the
+$751$\,kW source scaler, produces wildly out-of-range predictions).
+\emph{(ii)}~EWC (B1/B4) is statistically indistinguishable from a plain warm-start
+on plasticity and does not beat replay on retention; here B1 (source Fisher) is
+even marginally \emph{better} than B4 on retention, reinforcing that \emph{the
+Fisher's origin does not matter}. \emph{(iii)}~Replay again yields by far the best
+source retention, at a clearer plasticity cost on this task. Two tasks of very
+different physical nature thus reach the same verdict: \emph{warm-start$+$replay
+wins; EWC adds nothing}. (For PV we report RMSE in kW, since mean-normalised nRMSE
+is inflated by night-time zeros --- a metric caveat rarely acknowledged.)
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{figures/fig_pv_rq1.png}
+\caption{PV RQ1: target RMSE (kW, log) vs.\ $N$. Warm-start (B3/B4) is an order of
+magnitude below from-scratch (B0).}
+\label{fig:pvrq1}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{PV RQ2/RQ3 at $N{=}30$ (3 seeds). Plasticity = target RMSE (kW);
+stability = source-retention nRMSE.}
+\label{tab:pv}
+\begin{tabular}{lcc}
+\toprule
+Condition & target RMSE (kW) & source-retention nRMSE\\
+\midrule
+B0 from-scratch          & $385\pm251$ & $5.01\pm2.7$\\
+B3 warm, no-EWC          & $6.85\pm0.9$ & $1.70\pm.05$\\
+B1 warm+EWC (src Fisher) & $6.93\pm0.6$ & $1.51\pm.07$\\
+B4 warm+EWC (tgt Fisher) & $\mathbf{6.24\pm0.6}$ & $1.71\pm.04$\\
+B5 warm+replay           & $11.7\pm2.3$ & $\mathbf{0.67\pm.05}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%=====================================================================
+\section{Discussion}
+%=====================================================================
+Why does EWC fail here while replay succeeds? EWC anchors parameters toward
+$\theta^{\star}$ weighted by source importance. When the target demand
+distribution differs by $6\times$ in scale, (i)~the source Fisher is dominated by
+that scale, so at matched $\lambda$ it over-constrains, and (ii)~even a
+well-scaled or target-estimated Fisher pulls the model toward a solution that no
+longer fits the target, hurting plasticity without buying retention. Replay, by
+contrast, keeps a small, direct signal of the source objective in every update,
+which we find is the only mechanism that measurably preserves source performance.
+The practical implication for deployed community forecasters is clear:
+\emph{for cross-site cold-start, prefer weight transfer plus a small replay buffer
+over EWC regularisation}.
+
+%=====================================================================
+\section{Limitations}
+%=====================================================================
+We state these plainly. (1)~\emph{A single target site, architecture and task}:
+our ``EWC does not help'' claim is empirical for this transfer and cannot be
+generalised; relating domain distance to the transfer gap (RQ3's broader aim)
+requires additional target sites. (2)~\emph{Weather approximations}: the UK site
+uses a single representative point, and the source weather was re-fetched from
+Open-Meteo (min/max reproduce the scaler exactly, but individual values
+approximate the original snapshot). (3)~The UK data reflects a \emph{smart-charging
+trial intervention}, not ``natural'' demand. (4)~\emph{Absolute error is high}
+(${\sim}0.52$ $\nrmse$ even warm-started): the large demand shift caps transfer
+quality; the benefit is \emph{relative} to from-scratch. (5)~\emph{Three seeds}
+(run-to-run CV up to ${\sim}35\%$) suffice to separate the main effects but $5$--$10$
+are advisable for strong claims.
+
+%=====================================================================
+\section{Conclusion}
+%=====================================================================
+On real cross-country cold-start transfers for \emph{two} physically distinct
+tasks --- EV demand and PV generation --- weight transfer strongly helps, replay
+best preserves the source domain, and \emph{no} EWC variant --- including the true
+empirical Fisher, per-layer normalisation, and an EWC$+$replay hybrid --- beats a
+simple warm-start$+$replay. A scale-fairness control shows the transferred
+Fisher's apparent harm is an artifact, not an intrinsic property. Future work will
+add multiple target sites per task to relate the transfer gap to the measured
+domain distance, and evaluate replay-buffer sizing under longer continual streams.
+
+%=====================================================================
+\section*{Reproducibility}
+%=====================================================================
+Modules (model builder verified to $\max|\Delta|{=}0$, windowing, Fisher
+estimators, parameterised B0--B5 trainer, drivers, analysis), per-run CSV logs,
+seeds, and figures are released. GPU runs use \texttt{tensorflow[and-cuda]} under
+WSL2.
+
+%=====================================================================
+\begin{thebibliography}{99}
+\bibitem{PanYang2010} S.~J.~Pan and Q.~Yang, ``A survey on transfer learning,''
+\emph{IEEE TKDE}, vol.~22, no.~10, pp.~1345--1359, 2010.
+\bibitem{McCloskey1989} M.~McCloskey and N.~J.~Cohen, ``Catastrophic interference
+in connectionist networks: The sequential learning problem,'' \emph{Psych.\ of
+Learning and Motivation}, vol.~24, pp.~109--165, 1989.
+\bibitem{French1999} R.~M.~French, ``Catastrophic forgetting in connectionist
+networks,'' \emph{Trends in Cognitive Sciences}, vol.~3, no.~4, pp.~128--135, 1999.
+\bibitem{Kirkpatrick2017} J.~Kirkpatrick \emph{et al.}, ``Overcoming catastrophic
+forgetting in neural networks,'' \emph{PNAS}, vol.~114, no.~13, pp.~3521--3526, 2017.
+\bibitem{DeLange2021} M.~De~Lange \emph{et al.}, ``A continual learning survey:
+Defying forgetting in classification tasks,'' \emph{IEEE TPAMI}, vol.~44, no.~7,
+pp.~3366--3385, 2021.
+\bibitem{Zenke2017} F.~Zenke, B.~Poole, and S.~Ganguli, ``Continual learning
+through synaptic intelligence,'' in \emph{ICML}, 2017.
+\bibitem{Aljundi2018} R.~Aljundi \emph{et al.}, ``Memory aware synapses: Learning
+what (not) to forget,'' in \emph{ECCV}, 2018.
+\bibitem{LiHoiem2017} Z.~Li and D.~Hoiem, ``Learning without forgetting,''
+\emph{IEEE TPAMI}, vol.~40, no.~12, pp.~2935--2947, 2017.
+\bibitem{Rebuffi2017} S.-A.~Rebuffi \emph{et al.}, ``iCaRL: Incremental classifier
+and representation learning,'' in \emph{CVPR}, 2017.
+\bibitem{Rolnick2019} D.~Rolnick \emph{et al.}, ``Experience replay for continual
+learning,'' in \emph{NeurIPS}, 2019.
+\bibitem{Buzzega2020} P.~Buzzega \emph{et al.}, ``Dark experience for general
+continual learning: a strong, simple baseline,'' in \emph{NeurIPS}, 2020.
+\bibitem{Schwarz2018} J.~Schwarz \emph{et al.}, ``Progress \& compress: A scalable
+framework for continual learning,'' in \emph{ICML}, 2018.
+\bibitem{CLTimeSeriesSurvey2024} Q.~Besnard \emph{et al.}, ``Continual learning for
+time series forecasting: A first survey,'' 2024.
+\bibitem{ContLoadPartsCleaning2025} ``Continual learning for very short-term load
+forecasting: A case study on parts cleaning,'' \emph{Applied Energy}, vol.~402,
+2025.
+\bibitem{BuildingEnergyCL2023} ``Large-scale comparison and demonstration of
+continual learning for adaptive data-driven building energy prediction,''
+\emph{Applied Energy}, 2023.
+\bibitem{OODLoadCovid2023} A.~Author \emph{et al.}, ``Navigating out-of-distribution
+electricity load forecasting during COVID-19,'' arXiv:2309.04296, 2023.
+\bibitem{PracticalCLEnergy2026} ``Towards continuous power forecasting: Practical
+continual learning for real-world energy systems,'' arXiv:2606.24955, 2026.
+\bibitem{EVTransferGaps2025} ``Bridging data gaps for EV demand estimation: A
+transfer learning approach,'' \emph{J.\ Transport Geography}, 2025.
+\bibitem{EVScarceCluster2025} ``Enhancing EV charging load prediction in
+data-scarce scenarios: clustering and transfer learning,'' \emph{Energy \& AI},
+2025.
+\bibitem{Gretton2012} A.~Gretton \emph{et al.}, ``A kernel two-sample test,''
+\emph{JMLR}, vol.~13, pp.~723--773, 2012.
+\bibitem{OPSD2020} Open Power System Data, ``Household data,'' 2020. [Online].
+Available: \url{https://data.open-power-system-data.org/household_data/}
+\end{thebibliography}
+
+\end{document}

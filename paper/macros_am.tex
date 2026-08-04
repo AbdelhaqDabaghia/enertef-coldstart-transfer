@@ -1,0 +1,384 @@
+%%% ------------------------------------------ %%%
+
+\newcommand{\g}[1]{\`#1}
+
+\newcommand{\rfeq}[1]{(\ref{#1})}
+
+\newcommand{\Todo}[1]{{\color{orange}\emph{TODO : #1}}}
+\newcommand{\Ques}[1]{{\color{blue}\emph{Question : #1 \, ?}}}
+
+\newenvironment{todo}%
+{\color{orange}\vspace{1cm} \textbf{TODO :}}%
+{\color{black}\vspace{1cm}}
+
+\newcommand{\Issue}[1]{{\color{red}\emph{ISSUE : #1 }}}
+\newenvironment{issue}%
+{\color{red}\vspace{1cm} \textbf{ISSUE :}}%
+{\color{black}\vspace{1cm}}
+
+\newenvironment{corr}%
+{\color{olive}\vspace{1cm} \textbf{Correction :}}%
+{\color{black}\vspace{1cm}}
+
+\newenvironment{cola}
+{\color{blue}\vspace{1cm} \textbf{Computation of \(\fcap\) :}}%
+{\color{black}\vspace{1cm}}
+
+
+%%% ------------------------------------------ %%%
+
+%%% ------------------------------------------ %%%
+
+\renewcommand{\vec}[1]{{\bm{#1}}}
+\newcommand{\mat}[1]{{\bm{#1}}}
+
+% \newcommand{\diff}{\text{d}}
+\newcommand{\diff}{\mathrm{d}}
+
+\newcommand{\Trace}[1]{\mathrm{Tr}\left(#1\right)}
+
+%Pour de belles EDO.
+\newcommand{\der}[3][]{\dfrac{\text{d}^{#1}\,{#2}}{\text{d}{#3}^{#1}}}
+
+%Pour de belles EDP
+\newcommand{\derp}[3][]{\dfrac{\partial^{#1}{#2}}{\partial{{#3}^{#1}}}}
+
+\newcommand{\divergence}{\text{div}}
+
+\newcommand{\vectorddd}[3]{\left(\begin{array}{c} #1\\ #2\\ #3\\ \end{array}\right)}
+
+%%% ------------------------------------------ %%%
+%%% Calculus of variations
+
+% \newcommand{\dyxfix}{(\delta\yx)}
+\newcommand{\dyxfix}{\delta\yx}
+% \newcommand{\dyxfix}{\tilde{\delta}\yx}
+
+
+%%% ------------------------------------------ %%%
+%%% For bold greek in math mode
+\usepackage{bm}
+%%% ------------------------------------------ %%%
+
+%% Triple line radius
+\newcommand{\rtriple}{r}
+%% Gorge radius
+\newcommand{\gorge}{y^{\ast}}
+
+% \newcommand{\amplcatpl}{\alpha}
+\newcommand{\amplcatpl}{\mu}
+\newcommand{\amplcatplbis}{\nu}
+
+\newcommand{\amplcatsph}{\eta}
+
+%%% ------------------------------------------ %%%
+\newcommand{\contactangle}{\theta}
+\newcommand{\youngcontactangle}{\theta_{\text{Young}}}
+%%
+\newcommand{\contactanglec}{\theta_c}
+\newcommand{\contactanglel}{\theta_{\ell}}
+%%%
+\newcommand{\openangle}{\alpha}%% Cone opening angle
+\newcommand{\fillangle}{\zeta}%% Filling angle for a bridge or droplet with a spherical substrate
+%%%
+\newcommand{\derangle}{\beta}%% Angle between the generator tangent and the axis parallel, at the triple point
+\newcommand{\deranglec}{\beta_c}
+\newcommand{\deranglel}{\beta_{\ell}}
+%%% ------------------------------------------ %%%
+
+%% Volume : solid and fluid
+\newcommand{\Vrev}{V_{\star}}
+\newcommand{\Vsol}{V_c}
+\newcommand{\Vsoll}{V_{\ell}}
+\newcommand{\Vsolc}{V_c}
+
+%% Surface tension energy
+\newcommand{\gasl}{\gamma_{sl}}
+\newcommand{\gasg}{\gamma_{sg}}
+\newcommand{\galg}{\gamma_{lg}}
+\newcommand{\gaslg}{\gamma_{slg}}
+
+%% Area
+\newcommand{\Asl}{A_{sl}}
+\newcommand{\Asg}{A_{sg}}
+\newcommand{\Alg}{A_{lg}}
+
+%% Length
+\newcommand{\Lslg}{L_{slg}}
+
+%% S
+\newcommand{\SAsl}{\mathcal{S}}
+
+%%% ------------------------------------------ %%%
+%%% ---> Separate values depending from the substrate
+
+%% Surface tensions and line energy
+\newcommand{\gaslcone}{\gamma_{sl}^{\mathrm{cone}}}
+\newcommand{\gasgcone}{\gamma_{sg}^{\mathrm{cone}}}
+\newcommand{\gaslgcone}{\gamma_{slg}^{\mathrm{cone}}}
+%%
+\newcommand{\gaslplate}{\gamma_{sl}^{\mathrm{plate}}}
+\newcommand{\gasgplate}{\gamma_{sg}^{\mathrm{plate}}}
+\newcommand{\gaslgplate}{\gamma_{slg}^{\mathrm{plate}}}
+%%
+\newcommand{\gaslsphere}{\gamma_{sl}^{\mathrm{sphere}}}
+\newcommand{\gasgsphere}{\gamma_{sg}^{\mathrm{sphere}}}
+\newcommand{\gaslgsphere}{\gamma_{slg}^{\mathrm{sphere}}}
+
+%% Area
+\newcommand{\Aslcone}{A_{sl}^{\mathrm{cone}}}
+\newcommand{\Asgcone}{A_{sg}^{\mathrm{cone}}}
+\newcommand{\Algcone}{A_{lg}^{\mathrm{cone}}}
+%%
+\newcommand{\Aslplate}{A_{sl}^{\mathrm{plate}}}
+\newcommand{\Asgplate}{A_{sg}^{\mathrm{plate}}}
+\newcommand{\Algplate}{A_{lg}^{\mathrm{plate}}}
+%%
+\newcommand{\Aslsphere}{A_{sl}^{\mathrm{sphere}}}
+\newcommand{\Asgsphere}{A_{sg}^{\mathrm{sphere}}}
+\newcommand{\Algsphere}{A_{lg}^{\mathrm{sphere}}}
+
+%% Length
+\newcommand{\Lslgcone}{L_{slg}^{\mathrm{cone}}}
+\newcommand{\Lslgplate}{L_{slg}^{\mathrm{plate}}}
+\newcommand{\Lslgsphere}{L_{slg}^{\mathrm{sphere}}}
+
+%% S
+\newcommand{\SAslcone}{\mathcal{S}^{\mathrm{cone}}}
+\newcommand{\SAslplate}{\mathcal{S}^{\mathrm{plate}}}
+\newcommand{\SAslsphere}{\mathcal{S}^{\mathrm{sphere}}}
+
+%%% ------------------------------------------ %%%
+
+%% y and derivative
+\newcommand{\yx}{y}
+\newcommand{\yp}{y'}
+\newcommand{\ypp}{y''}
+\newcommand{\ypsq}{y'^2}
+
+%% yc and derivative
+\newcommand{\yc}{y_c}
+\newcommand{\ypc}{y'_c}
+\newcommand{\ypsqc}{y'^2_c}
+%% yl and derivative
+\newcommand{\yl}{y_{\ell}}
+\newcommand{\ypl}{y'_{\ell}}
+\newcommand{\ypsql}{y'^2_{\ell}}
+
+%% yb for the center of the sphere
+\newcommand{\yb}{y_{B}}
+
+%% Bounds labels
+% \newcommand{\labelinf}{\text{inf}}
+% \newcommand{\labelsup}{\text{sup}}
+%%
+\newcommand{\labelinf}{1}
+\newcommand{\labelsup}{2}
+
+%% Bounds : general case
+\newcommand{\xinf}{x_{\labelinf}}
+\newcommand{\xsup}{x_{\labelsup}}
+%%
+\newcommand{\yinf}{y_{\labelinf}}
+\newcommand{\ysup}{y_{\labelsup}}
+
+
+%% xwise derivative of ysup
+% \newcommand{\ysup}{y_{\text{sup}}}
+\newcommand{\ysupp}{{\ysup}'}
+\newcommand{\ysuppsq}{{\ysup}'^2}
+
+%% xwise derivative of yinf
+% \newcommand{\yinf}{y_{\text{inf}}}
+\newcommand{\yinfp}{{\yinf}'}
+\newcommand{\yinfpsq}{{\yinf}'^2}
+
+%% Special x values
+\newcommand{\xc}{x_c}
+\newcommand{\xl}{x_{\ell}}
+\newcommand{\xo}{x_O}
+\newcommand{\xa}{x_{A}}
+%% Sphere center or second cone apex
+\newcommand{\xb}{x_{B}}
+
+%%% ------------------------------------------ %%%
+
+%% x_-c
+\newcommand{\xmc}{x_{-c}}
+
+%% y-c and derivative
+\newcommand{\ymc}{y_{-c}}
+\newcommand{\ympc}{y'_{-c}}
+\newcommand{\ympsqc}{y'^2_{-c}}
+
+%%% ------------------------------------------ %%%
+
+\newcommand{\fxlg}[1][\xc]{({\vec f}_{lg})_{#1}}
+\newcommand{\fxsl}[1][\xc]{({\vec f}_{sl})_{#1}}
+\newcommand{\fxslg}[1][\xc]{({\vec f}_{slg})_{#1}}
+\newcommand{\fxV}[1][\xc]{({\vec f}_{V})_{#1}}
+%%
+\newcommand{\fxslgshift}[3][\xc]{({\vec f}_{slg})_{#1}^{#2 \rightarrow #3}}
+\newcommand{\fxslshift}[3][\xc]{({\vec f}_{sl})_{#1}^{#2 \rightarrow #3}}
+
+%%% ------------------------------------------ %%%
+
+\newcommand{\lambdaAxx}{\lambda_{Axx}}
+\newcommand{\lambdaAxy}{\lambda_{Axy}}
+\newcommand{\lambdaAyy}{\lambda_{Ayy}}
+%%
+% \newcommand{\lambdaAyyVyyy}{\lambda_{Ay^2\, Vy^3}}
+\newcommand{\lambdaAyyVyyy}{\lambda_{Ayy,\, Vyyy}}
+
+%%
+
+%%% ------------------------------------------ %%%
+
+%% Multiplicateur de Lagrange : volume du pont capillaire
+% \newcommand{\lagvol}{\lambda}
+\newcommand{\lagvol}{\mu}
+
+
+%%% ------------------------------------------ %%%
+
+%%% Cone
+\newcommand{\coneabsciss}{s}
+\newcommand{\coneabscissc}{s_c}
+\newcommand{\coneabscissl}{s_{\ell}}
+%%% Sphere
+\newcommand{\sphereabsciss}{R\,\fillangle}
+
+%%% ------------------------------------------ %%%
+
+%%% External force
+%% On figures
+\newcommand{\fext}{\mathbf{f}^{\mathrm{ext}}}
+%% Before delta xl, in the text
+\newcommand{\fscalext}{\text{f}^{\mathrm{ext}}}
+
+%%% Article 1: external force at the top of the bridge
+%% On figures
+\newcommand{\fextl}{\mathbf{f}_{\ell}^{\mathrm{ext}}}
+\newcommand{\fextc}{\mathbf{f}_{c}^{\mathrm{ext}}}
+% \newcommand{\fextgorge}{\mathbf{f}_{\ast}^{\mathrm{ext}}}
+%% Before delta xl, in the text
+\newcommand{\fscalextl}{\text{f}_{\ell}^{\mathrm{ext}}}
+\newcommand{\fscalextc}{\text{f}_{c}^{\mathrm{ext}}}
+% \newcommand{\fscalextgorge}{\text{f}_{\ast}^{\mathrm{ext}}}
+
+%%% Article 2: external force at the top of the bridge, cone
+%% On figures
+\newcommand{\fexta}{\mathbf{f}_{a}^{\mathrm{ext}}}
+%% Before delta xl, in the text
+\newcommand{\fscalexta}{\text{f}_{a}^{\mathrm{ext}}}
+
+%% Generic capillary force
+\newcommand{\fcap}[1][\text{cap}]{\mathbf{f}_{#1}}
+
+%\newcommand{\fcapn}[1][\text{cap}]{{f}_{#1}}
+
+\newcommand{\fcapn}{\text{f}_\mathrm{cap}^{\mathrm{n}}}
+
+
+
+
+\newcommand{\fscalcap}[1][\text{cap}]{\text{f}_{#1}}
+%%
+\newcommand{\fcapc}{\fcap[c]}%%[1][\text{cap}]{\mathbf{f}_{#1}}
+\newcommand{\fscalcapc}{\fscalcap[c]}%%[1][\text{cap}]{\text{f}_{#1}}
+%%
+\newcommand{\fcapl}{\fcap[\ell]}%%[1][\text{cap}]{\mathbf{f}_{#1}}
+\newcommand{\fscalcapl}{\fscalcap[\ell]}%%[1][\text{cap}]{\text{f}_{#1}}
+%%
+\newcommand{\fcapgorge}{\fcap[\ast]}%%[1][\text{cap}]{\mathbf{f}_{#1}}
+\newcommand{\fscalcapgorge}{\fscalcap[\ast]}%%[1][\text{cap}]{\text{f}_{#1}}
+
+%%% ------------------------------------------ %%%
+
+\newcommand{\colxa}[1]{{\color{blue}#1}}
+
+%%% ------------------------------------------ %%%
+%%% Intrinsic calculations by Olivier Millet
+%%% ------------------------------------------ %%%
+
+%%% Coordinates in domains
+
+%%% Lagrange
+% \newcommand{\Xcoord}{\mathbf{X}}
+\newcommand{\Xcoord}{\mathbf{x}_0}
+\newcommand{\Pcoord}{\mathbf{p}_0}
+%%% Euler (?)
+\newcommand{\xcoord}{\mathbf{x}}
+\newcommand{\pcoord}{\mathbf{p}}
+\newcommand{\scoord}{\mathbf{s}}
+
+
+%%% Vector or components of variations
+\newcommand{\vt}{\underline{v_t}}
+\newcommand{\svn}{v_3}
+\newcommand{\vnormal}{\vec{n}}
+
+\newcommand{\vsl}{\vec{v}_{sl}}
+\newcommand{\vtsl}{\underline{v_t^{sl}}}
+\newcommand{\svnsl}{v_3^{sl}}
+
+\newcommand{\vlg}{\vec{v}_{lg}}
+\newcommand{\vtlg}{\underline{v_t^{lg}}}
+\newcommand{\svnlg}{v_3^{lg}}
+
+%% Normal vectors to surfaces
+\newcommand{\nlg}{\vec{n}_{lg}}
+\newcommand{\nsl}{\vec{n}_{sl}}
+
+%%% Normal vectors to surface boundaries, belong to the tangent space t the current point
+\newcommand{\nulg}{\underline{\nu_{lg}}}
+\newcommand{\nusl}{\underline{\nu_{sl}}}
+\newcommand{\nusg}{\underline{\nu_{sg}}}
+
+%%% Tangent vectors: which definition? belong to the tangent planes, et the triple line points, intersections?
+\newcommand{\tlg}{\vec{t}_{lg}}
+\newcommand{\tsl}{\vec{t}_{sl}}
+
+%%% Triple line: osculating plane, which tangent vector?
+\newcommand{\nslg}{\vec{n}_{slg}}
+\newcommand{\tslg}{\vec{t}_{slg}}
+\newcommand{\nuslg}{\underline{\nu_{slg}}}
+
+%%% Domains
+\newcommand{\Vl}{\Omega}
+\newcommand{\domVl}{\Omega_{l}}
+
+\newcommand{\darea}{\omega}
+\newcommand{\dlg}{\omega}
+\newcommand{\dsl}{\omega}
+\newcommand{\dsg}{\omega}
+
+\newcommand{\domlg}{\omega_{lg}}
+\newcommand{\domsl}{\omega_{sl}}
+\newcommand{\domsg}{\omega_{sg}}
+
+%% Boundaries: equal domslg
+\newcommand{\ddomlg}{\lambda_{lg}}
+\newcommand{\ddomsl}{\lambda_{sl}}
+\newcommand{\ddomsg}{\lambda_{sg}}
+
+% \newcommand{\domslg}{\mathcal{L}_{slg}}
+% \newcommand{\domslg}{\ell_{slg}}
+\newcommand{\domslg}{\lambda_{slg}}
+
+\newcommand{\lslg}{\lambda}
+
+%% Tensors
+\newcommand{\Clg}{\mat{C}_{lg}}
+\newcommand{\Csl}{\mat{C}_{sl}}
+
+%%
+\newcommand{\position}{\vec{p}}
+
+
+%%% Remarquable constants
+\newcommand{\Atriple}{A}
+\newcommand{\Btriple}{B}
+
+%% Formes fondamentales
+\newcommand{\FirstF}{\mat{F}}

@@ -1,0 +1,3 @@
+run_id,baseline,n_days,lambda_ewc,beta_replay,seed,target_nrmse,target_rmse_kw,target_mean_kw,source_retention_nrmse,below_threshold,threshold,epochs,batch_size,lr,wall_clock_s,timestamp,notes
+,B0,7,0.0,0.0,0,1.585351,36.5166,23.0338,,,,2,64,0.0001,43.7,2026-08-03T08:50:11.830878+00:00,
+,B3,7,0.0,0.0,0,0.87129,20.0691,23.0338,,,,2,64,0.0001,45.5,2026-08-03T08:50:57.298166+00:00,
