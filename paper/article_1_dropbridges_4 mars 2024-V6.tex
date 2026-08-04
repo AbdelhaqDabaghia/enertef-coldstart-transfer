@@ -310,7 +310,7 @@ statistically indistinguishable from a plain warm-start (B3).
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_rq1_coldstart.png}
+\includegraphics[width=0.92\linewidth]{figures/fig_rq1_coldstart.pdf}
 \caption{RQ1: target $\nrmse$ vs.\ available target data $N$ (log scale, mean$\pm$std
 over 3 seeds). Warm-start ($\text{B3}/\text{B4}$) strongly outperforms
 from-scratch (B0).}
@@ -340,13 +340,13 @@ warm-start) at a modest target cost. EWC (B1/B4) does not improve retention over
 plain warm-start; from-scratch (B0) is worst on both axes (it never saw the
 source).
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_rq2_tradeoff.png}
+\includegraphics[width=\linewidth]{figures/fig_rq2_tradeoff.pdf}
 \caption{RQ2: stability--plasticity trade-off at $N{=}30$ (mean$\pm$std). Lower-left
 is better. Replay (B5) alone reaches low source-retention error.}
 \label{fig:rq2}
-\end{figure}
+\end{figure*}
 
 \begin{table}[t]
 \centering
@@ -381,7 +381,7 @@ transferred Fisher is intrinsically harmful.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.86\linewidth]{figures/fig_rq3_fisher.png}
+\includegraphics[width=0.86\linewidth]{figures/fig_rq3_fisher.pdf}
 \caption{RQ3: source vs.\ target Fisher at matched (raw) $\lambda{=}100$. The gap
 is a scale artifact (see text); it vanishes under normalisation.}
 \label{fig:rq3}
@@ -416,13 +416,13 @@ learning-rate/epoch sweep (a trivial ``adapt less, forget less'' knob) is
 retention ($0.56$) never approaches replay's ($0.40$). Thus replay's retention
 advantage is real and not reproducible by simple under-regularisation or by EWC.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_bench_ewc.png}
+\includegraphics[width=\linewidth]{figures/fig_bench_ewc.pdf}
 \caption{Improved-EWC bench at $N{=}30$: every EWC variant lands up-and-right of
 (i.e.\ worse than) warm-start and replay.}
 \label{fig:bench}
-\end{figure}
+\end{figure*}
 
 \begin{table}[t]
 \centering
@@ -476,7 +476,7 @@ is inflated by night-time zeros --- a metric caveat rarely acknowledged.)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_pv_rq1.png}
+\includegraphics[width=0.92\linewidth]{figures/fig_pv_rq1.pdf}
 \caption{PV RQ1: target RMSE (kW, log) vs.\ $N$. Warm-start (B3/B4) is an order of
 magnitude below from-scratch (B0).}
 \label{fig:pvrq1}
