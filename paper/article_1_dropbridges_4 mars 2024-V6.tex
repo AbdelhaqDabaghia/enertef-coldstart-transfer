@@ -146,11 +146,30 @@ demand} is motivated by data scarcity at new sites: knowledge is transferred fro
 data-rich to data-limited regions~\cite{EVTransferGaps2025}, sometimes combined
 with clustering to handle behavioural heterogeneity~\cite{EVScarceCluster2025}.
 
+\textbf{Representation and normalisation.} The two reformulations we exploit are
+individually well known. The \emph{per-unit} system --- normalising power by a
+rated base --- is textbook in power engineering~\cite{Glover}, and capacity- or
+maximum-value normalisation into $[0,1]$ is standard practice in load-forecasting
+transfer, where target series are rescaled to a common range or made
+building-agnostic before fine-tuning~\cite{TLnorm}. In solar forecasting, the
+\emph{clear-sky index} (power or irradiance divided by a clear-sky model) is the
+routine way to de-seasonalise the diurnal/annual trend and obtain a near-stationary
+target in $[0,1]$; it is widely reported to improve accuracy regardless of the
+model~\cite{Inman2013,Yang2018}. Our contribution is \emph{not} these normalisations
+but the finding that, in \emph{cross-regime transfer}, the choice of output
+representation --- not the continual-learning algorithm --- is the dominant lever:
+we quantify that per-unit collapses the source/target Fisher-scale mismatch from
+$211\times$ to ${\sim}2\times$ and that these reformulations cut transfer error by
+${\sim}33\%$ (EV) and ${\sim}32\times$ (PV), and we connect this directly to why
+weight-anchoring regularisers fail (Sec.~\ref{sec:mech}).
+
 \textbf{Gap.} Most CL/transfer forecasting studies use synthetic splits or a
 single method, and rarely (a)~validate transfer on an \emph{independent published}
-target, (b)~jointly measure plasticity \emph{and} source retention, or (c)~control
-for the \emph{scale} of the importance matrix when comparing Fisher variants. We
-address all three, and report a rigorous negative result on EWC for this transfer.
+target, (b)~jointly measure plasticity \emph{and} source retention, (c)~control
+for the \emph{scale} of the importance matrix when comparing Fisher variants, or
+(d)~ask whether the \emph{representation}, rather than the algorithm, is what
+limits transfer. We address all four, and report a rigorous negative result on EWC
+alongside a positive representation result and a mechanistic explanation.
 
 %=====================================================================
 \section{Problem Setup and Data}
@@ -642,6 +661,7 @@ algorithm but a change of representation imported from the application domain.
 
 %=====================================================================
 \section{Mechanistic Analysis: Why Replay Beats Regularization}
+\label{sec:mech}
 %=====================================================================
 Beyond \emph{that} replay wins, we explain \emph{why}, with three probes at the
 production weights $\theta^{\star}$ (EV, $N{=}30$; Table~\ref{tab:mech}).
@@ -794,6 +814,16 @@ data-scarce scenarios: clustering and transfer learning,'' \emph{Energy \& AI},
 \emph{JMLR}, vol.~13, pp.~723--773, 2012.
 \bibitem{OPSD2020} Open Power System Data, ``Household data,'' 2020. [Online].
 Available: \url{https://data.open-power-system-data.org/household_data/}
+\bibitem{Glover} J.~D.~Glover, M.~S.~Sarma, and T.~J.~Overbye, \emph{Power System
+Analysis and Design}. Cengage Learning (per-unit system).
+\bibitem{TLnorm} ``Energy predictive models with limited data using transfer
+learning,'' arXiv:1906.02646, 2019.
+\bibitem{Inman2013} R.~H.~Inman, H.~T.~C.~Pedro, and C.~F.~M.~Coimbra, ``Solar
+forecasting methods for renewable energy integration,'' \emph{Prog.\ Energy
+Combust.\ Sci.}, vol.~39, no.~6, pp.~535--576, 2013.
+\bibitem{Yang2018} D.~Yang \emph{et al.}, ``History and trends in solar irradiance
+and PV power forecasting: A preliminary assessment and review using text mining,''
+\emph{Solar Energy}, vol.~168, pp.~60--101, 2018.
 \end{thebibliography}
 
 \end{document}
