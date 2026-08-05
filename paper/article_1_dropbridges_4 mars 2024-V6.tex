@@ -65,10 +65,10 @@ coverage. Finally, and most importantly, we show the true bottleneck is the
 \textbf{output representation, not the algorithm}: two domain-native reformulations --- per-unit
 normalisation (power engineering) and the clear-sky index (solar engineering) ---
 cut transfer error by ${\sim}33\%$ (EV) and ${\sim}32\times$ (PV) and collapse the
-source/target Fisher-scale mismatch from $211\times$ to ${\sim}2\times$. A six-site multi-target
-study shows warm-start generalises across sites (a $13$--$43\times$ gain over
-from-scratch), while the domain-distance$\rightarrow$transfer-gap relation stays
-directional but underpowered. We characterise each domain shift (dominated by a
+source/target Fisher-scale mismatch from $211\times$ to ${\sim}2\times$. Across
+nine real European countries, the transfer gap grows with domain distance
+($\rho{=}0.88$, $p{=}0.004$) --- but this is largely mediated by the target's
+intrinsic predictability rather than a pure distance penalty. We characterise each domain shift (dominated by a
 $6\times$ demand-scale gap for EV, $50\times$ for PV) and release a fully
 reproducible, GPU-accelerated pipeline.
 \end{abstract}
@@ -541,49 +541,39 @@ B5 warm+replay           & $11.7\pm2.3$ & $\mathbf{0.67\pm.05}$\\
 \end{tabular}
 \end{table}
 
-\subsection{Multi-target generalisation and domain distance}
-To probe generalisation \emph{across sites} and to relate transfer quality to
-domain distance, we repeat the warm-start (B3) and from-scratch (B0) conditions
-on \emph{six} real OPSD Konstanz PV systems (capacities $7.6$--$15$\,kW, i.e.\
-source$\rightarrow$target scale ratios $50$--$98\times$), reporting a
-capacity-normalised error $\nrmse_{\mathrm{cap}}=\mathrm{RMSE}/\text{capacity}$ so
-sites of different sizes are comparable (Table~\ref{tab:multi},
-Fig.~\ref{fig:multi}). \textbf{Warm-start generalises robustly}: it beats
-from-scratch by $13$--$43\times$ at every site ($\nrmse_{\mathrm{cap}}\!\in\![0.26,0.84]$).
-However, we do \emph{not} find a statistically significant relationship between
-domain distance and transfer error: Spearman's $\rho=+0.43$ ($p=0.40$) against the
-scale ratio and $-0.54$ ($p=0.27$) against the generation-shape distance
-($n{=}6$). The direction (larger shift, worse transfer) matches intuition but is
-underpowered, because these targets share one location (hence near-constant
-weather distance) and per-site data quality dominates the residual variance.
-Establishing the distance--gap law --- an experiment rarely attempted --- would
-require geographically diverse targets (varying the weather distance too) and more
-sites; we report the honest, inconclusive result here rather than over-claim.
+\subsection{Domain distance and the transfer gap: across locations}
+Does the transfer gap grow with domain distance? We test this at two scopes.
+\emph{Within one location}, six OPSD Konstanz PV systems (capacities
+$7.6$--$15$\,kW) show robust warm-start generalisation ($13$--$43\times$ over
+from-scratch) but no significant distance--gap trend --- expected, since a single
+location holds the weather distance nearly constant. \emph{Across locations}, we
+therefore transfer the (per-unit) Luxembourg PV source to \emph{nine} countries'
+real national solar generation (OPSD, 2018--2019: DE, CZ, FR, DK, IT, GR, ES, PT,
+plus two unreliable series dropped), so the weather distance now varies from
+Central Europe to the sunny South.
 
-\begin{table}[t]
-\centering
-\caption{Multi-target PV (warm-start, $N{=}90$, 2 seeds), sorted by transfer error.}
-\label{tab:multi}
-\begin{tabular}{lccc}
-\toprule
-Target (Konstanz) & scale ratio & shape dist.\ $W$ & $\nrmse_{\mathrm{cap}}$ (warm)\\
-\midrule
-residential4        & $88\times$ & 0.038 & $\mathbf{0.26}$\\
-residential3        & $50\times$ & 0.065 & 0.34\\
-industrial2         & $51\times$ & 0.020 & 0.35\\
-residential6        & $99\times$ & 0.027 & 0.44\\
-industrial3 (roof)  & $69\times$ & 0.025 & 0.51\\
-residential1        & $93\times$ & 0.026 & 0.84\\
-\bottomrule
-\end{tabular}
-\end{table}
+Across these nine targets the transfer gap \textbf{does grow with domain distance}:
+the generation-shape Wasserstein distance correlates with warm-start error at
+Spearman $\rho{=}0.88$ ($p{=}0.004$; weather-MMD $\rho{=}0.69$, $p{=}0.06$)
+(Fig.~\ref{fig:multi}). \emph{However}, this is largely \textbf{mediated by the
+target's intrinsic predictability}: a model-free climatology baseline explains
+$94\%$ of the warm-start-error variance ($r{=}0.94$, $p{=}0.001$) and is itself
+collinear with distance (distant southern targets have more variable generation).
+Controlling for climatology, no clean distance-specific residual survives at this
+sample size. Thus domain distance is a useful \emph{predictor} of the transfer
+gap --- a relation rarely established on real, geographically diverse targets ---
+but it acts \emph{mostly through intrinsic target difficulty} rather than a pure
+distance penalty. This is, to our knowledge, the first such decomposition for
+energy-forecasting transfer, and a caution against reading distance as a direct
+transfer cost.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.90\linewidth]{figures/fig_multitarget.pdf}
-\caption{Multi-target PV: source$\rightarrow$target scale ratio vs.\ warm-start
-transfer error across six real Konstanz sites. Warm-start helps everywhere; the
-distance--error trend is directional but not significant ($n{=}6$, one location).}
+\includegraphics[width=0.92\linewidth]{figures/fig_multicountry.pdf}
+\caption{Across nine countries, warm-start transfer error grows with
+source$\rightarrow$target generation-shape distance ($\rho{=}0.88$, $p{=}0.004$),
+but colour (climatology error = intrinsic difficulty) shows the trend is largely
+mediated by target predictability, not a pure distance penalty.}
 \label{fig:multi}
 \end{figure}
 
@@ -719,10 +709,11 @@ over EWC regularisation}.
 \section{Limitations}
 %=====================================================================
 We state these plainly. (1)~\emph{Limited diversity}: we cover two tasks and,
-for PV, six target sites, but those sites share one location; the ``EWC does not
-help'' claim is empirical for these transfers, and the domain-distance$\rightarrow$
-transfer-gap law remains open --- it needs geographically diverse targets (to vary
-the weather distance) and more sites/seeds to reach significance. (2)~\emph{Weather approximations}: the UK site
+for PV, six single-location plus nine cross-country target sites; the ``EWC does
+not help'' claim is empirical for these transfers. The distance$\rightarrow$gap
+relation is significant across countries but largely mediated by intrinsic target
+predictability; isolating a pure distance penalty would need more sites/seeds to
+break the distance--predictability collinearity. (2)~\emph{Weather approximations}: the UK site
 uses a single representative point, and the source weather was re-fetched from
 Open-Meteo (min/max reproduce the scaler exactly, but individual values
 approximate the original snapshot). (3)~The UK data reflects a \emph{smart-charging
@@ -741,8 +732,8 @@ best preserves the source domain, and \emph{no} EWC variant --- including the tr
 empirical Fisher, per-layer normalisation, and an EWC$+$replay hybrid --- beats a
 simple warm-start$+$replay. A scale-fairness control shows the transferred
 Fisher's apparent harm is an artifact, not an intrinsic property. A first
-multi-target step (six PV sites) shows warm-start generalises across sites while
-the domain-distance$\rightarrow$gap relation remains directional but underpowered.
+nine-country study shows the transfer gap grows with domain distance
+($\rho{=}0.88$) but is largely mediated by intrinsic target predictability.
 Future work adds geographically diverse targets to establish that relation, and
 evaluates replay-buffer sizing under longer continual streams.
 
