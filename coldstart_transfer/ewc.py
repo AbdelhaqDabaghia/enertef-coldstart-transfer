@@ -83,6 +83,32 @@ def estimate_empirical_fisher(model, X_seq, X_next, y, m_points=200, batch_size=
     return [f / float(m) for f in fisher]
 
 
+def estimate_mas_importance(model, X_seq, X_next, m_points=500, batch_size=32, seed=0):
+    """Memory Aware Synapses importance: mean over sampled points of the ABSOLUTE
+    gradient of 0.5*||f(x)||^2 w.r.t. each parameter (unsquared, unlike Fisher).
+    MAS is unsupervised (no labels), like our output-sensitivity proxy but abs
+    rather than squared -- included to cover the full regularisation family."""
+    n = len(X_seq); m = min(m_points, n)
+    rng = np.random.default_rng(seed)
+    idx = rng.choice(n, size=m, replace=False)
+    xs = tf.constant(X_seq[idx]); xn = tf.constant(X_next[idx])
+    tvars = model.trainable_variables
+    imp = [tf.zeros_like(v) for v in tvars]
+    nb = 0
+    for s in range(0, m, batch_size):
+        bs, bn = xs[s:s+batch_size], xn[s:s+batch_size]
+        if bs.shape[0] == 0:
+            continue
+        with tf.GradientTape() as tape:
+            y = model([bs, bn], training=False)
+            l2 = 0.5 * tf.reduce_mean(tf.reduce_sum(tf.square(y), axis=-1))
+        for i, g in enumerate(tape.gradient(l2, tvars)):
+            if g is not None:
+                imp[i] += tf.abs(g)
+        nb += 1
+    return [w / float(max(nb, 1)) for w in imp]
+
+
 def ewc_penalty(model, fisher, star_params):
     """(1/2) * sum_i F_ii * (theta_i - theta_i*)^2  (lambda applied by caller)."""
     total = tf.constant(0.0)

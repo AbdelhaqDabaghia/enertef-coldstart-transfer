@@ -52,13 +52,17 @@ nothing over a plain warm-start fine-tune. (iii)~In a controlled ablation --- th
 paper's core contribution --- we show the transferred Fisher's apparent harm is a
 \emph{scale artifact} (the source Fisher is ${\sim}211\times$ larger); once scales
 are equalised, the Fisher's \emph{origin} does not matter, and \emph{EWC itself}
-provides no benefit for this transfer. A dedicated bench (true empirical Fisher,
-per-layer normalisation, EWC$+$replay hybrid) and a simple learning-rate/epoch
-sweep confirm that \emph{no} regulariser variant reaches replay's retention.
-We then \textbf{replicate the entire protocol on a second, physically distinct
-task} --- PV generation forecasting (Luxembourg $\rightarrow$ a real published
-household in Konstanz, Germany) --- and obtain the same verdict, showing the
-result is not EV-specific. A six-site multi-target
+provides no benefit for this transfer. The full CL taxonomy
+(EWC, MAS, LwF, DER++, A-GEM), an improved-EWC bench, and a learning-rate/epoch
+sweep all fail to beat plain warm-start on plasticity or simple replay on
+retention. We then \textbf{replicate the entire protocol on a second, physically
+distinct task} --- PV generation forecasting (Luxembourg $\rightarrow$ a real
+published household in Konstanz, Germany) --- and obtain the same verdict.
+Finally, and most importantly, we show the true bottleneck is the \textbf{output
+representation, not the algorithm}: two domain-native reformulations --- per-unit
+normalisation (power engineering) and the clear-sky index (solar engineering) ---
+cut transfer error by ${\sim}33\%$ (EV) and ${\sim}32\times$ (PV) and collapse the
+source/target Fisher-scale mismatch from $211\times$ to ${\sim}2\times$. A six-site multi-target
 study shows warm-start generalises across sites (a $13$--$43\times$ gain over
 from-scratch), while the domain-distance$\rightarrow$transfer-gap relation stays
 directional but underpowered. We characterise each domain shift (dominated by a
@@ -445,6 +449,37 @@ LR/epoch sweep (best ret.)  & $0.52$ & $0.56$\\
 \end{tabular}
 \end{table}
 
+\subsection{Full continual-learning baseline suite}
+To rule out that a different CL family would win, we bench the standard taxonomy
+at $N{=}30$ (3 seeds, Table~\ref{tab:clsuite}): \emph{MAS} (regularisation),
+\emph{LwF} (functional distillation), \emph{DER++} (replay $+$ logit
+distillation), and \emph{A-GEM} (replay with gradient projection). \textbf{None
+beats the plain warm-start (B3) on plasticity or simple replay (B5) on
+retention.} MAS mirrors EWC's failure (the regularisation family over-constrains);
+LwF and the replay-family variants do not improve on their plain counterparts.
+Synaptic Intelligence is omitted: in one-shot transfer there is no source-training
+trajectory to integrate, so its importance collapses to an EWC-like estimate. This
+closes the ``missing baselines'' concern across all three CL families.
+
+\begin{table}[t]
+\centering
+\caption{Full CL suite (EV, $N{=}30$, 3 seeds). No method beats warm-start on
+plasticity or replay on retention.}
+\label{tab:clsuite}
+\begin{tabular}{llcc}
+\toprule
+Method & Family & target $\nrmse$ & retention $\nrmse$\\
+\midrule
+B3 warm    & (reference)        & $\mathbf{0.52}$ & $0.56$\\
+B5 replay  & (reference)        & $0.68$ & $\mathbf{0.40}$\\
+MAS        & regularisation     & $0.82$ & $0.58$\\
+LwF        & distillation       & $0.68$ & $0.58$\\
+DER++      & replay$+$distill   & $0.78$ & $0.62$\\
+A-GEM      & replay$+$projection& $0.55$ & $0.55$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 %=====================================================================
 \section{Second Task: PV Generation (Luxembourg $\rightarrow$ Konstanz)}
 %=====================================================================
@@ -548,6 +583,65 @@ transfer error across six real Konstanz sites. Warm-start helps everywhere; the
 distance--error trend is directional but not significant ($n{=}6$, one location).}
 \label{fig:multi}
 \end{figure}
+
+%=====================================================================
+\section{Representation Matters: Two Domain-Native Reformulations}
+%=====================================================================
+Our uniformly negative CL results raise a sharper question: if no algorithm
+helps, what actually \emph{limits} transfer? We find the answer is the
+\textbf{output representation}, not the continual-learning method --- and that two
+reformulations borrowed from energy and solar engineering substantially improve
+transfer while leaving the CL conclusion intact. Because these change the target
+representation, the frozen production weights no longer apply; we therefore train
+a source model \emph{from scratch} in each representation and transfer it (B0 vs.\
+B3), a self-contained test of the representation hypothesis.
+
+\subsection{Per-unit normalisation (EV)}
+In the power-engineering \emph{per-unit} system, each site's power is divided by
+its rated capacity, yielding dimensionless, cross-site-comparable quantities.
+Re-training the EV source model in per-unit and transferring to the UK
+(Table~\ref{tab:reform}) has two effects. First, the source/target Fisher ratio
+\textbf{collapses from $211\times$ to ${\sim}2\times$}: the mismatch that
+motivated our RQ3 fairness control was itself a scaling artefact, not an intrinsic
+property. Second, warm-start transfer error \textbf{drops from $\nrmse{=}0.53$ to
+$0.35{\pm}0.02$} (a ${\sim}33\%$ reduction, 5 seeds), while the
+warm-start$\gg$from-scratch gap persists. Part of the ``high absolute error'' we (and a critical reviewer) noted
+was thus an artefact of scaling target power through source-fitted min--max
+scalers.
+
+\subsection{Clear-sky index (PV)}
+Solar forecasting rarely predicts raw power; it predicts the \emph{clear-sky
+index} $\mathrm{csi}=\text{power}/\text{clear-sky envelope}$, a near-stationary,
+location-agnostic target. We estimate the envelope empirically (a high power
+quantile per day-of-year bin and time-of-day, fit on training data only) and
+forecast csi. Re-training the PV source model in csi space and transferring to
+Konstanz \textbf{reduces target RMSE from ${\sim}6.85$\,kW to $0.22{\pm}0.001$\,kW}
+(5 seeds, ${\sim}32\times$)
+(Table~\ref{tab:reform}) and removes the night-time-zero pathology that inflated
+mean-normalised nRMSE. The physical constraint $\text{power}=\mathrm{csi}\times
+\text{envelope}\ge 0$ also rules out the non-physical predictions that plagued
+from-scratch models.
+
+\begin{table}[t]
+\centering
+\caption{Domain-native reformulations vs.\ the raw pipeline (warm-start, $N{=}30$).}
+\label{tab:reform}
+\begin{tabular}{lccc}
+\toprule
+Task / representation & transfer error & Fisher ratio & metric fix\\
+\midrule
+EV, raw min--max      & $\nrmse\,0.53$ & $211\times$ & ---\\
+EV, \textbf{per-unit} & $\nrmse\,\mathbf{0.35}$ & $\mathbf{2\times}$ & scale-free\\
+PV, raw power         & $6.85$\,kW & --- & ---\\
+PV, \textbf{clear-sky}& $\mathbf{0.22}$\,kW & --- & no night-zeros\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Takeaway.} Given a scale- and shape-invariant target
+representation, a plain warm-start suffices and CL regularisation remains
+unnecessary. The most effective ``continual-learning'' intervention here is not an
+algorithm but a change of representation imported from the application domain.
 
 %=====================================================================
 \section{Discussion}
