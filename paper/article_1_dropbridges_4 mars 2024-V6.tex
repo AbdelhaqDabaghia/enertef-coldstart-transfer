@@ -57,8 +57,12 @@ sweep all fail to beat plain warm-start on plasticity or simple replay on
 retention. We then \textbf{replicate the entire protocol on a second, physically
 distinct task} --- PV generation forecasting (Luxembourg $\rightarrow$ a real
 published household in Konstanz, Germany) --- and obtain the same verdict.
-Finally, and most importantly, we show the true bottleneck is the \textbf{output
-representation, not the algorithm}: two domain-native reformulations --- per-unit
+A mechanistic analysis explains \emph{why} replay wins in cross-regime transfer:
+the Fisher-important directions coincide with the useful target gradients
+($\mathrm{cosine}{=}0.82$), so regularising toward the source weights fights
+exactly the updates the target needs, whereas replay works by direct source
+coverage. Finally, and most importantly, we show the true bottleneck is the
+\textbf{output representation, not the algorithm}: two domain-native reformulations --- per-unit
 normalisation (power engineering) and the clear-sky index (solar engineering) ---
 cut transfer error by ${\sim}33\%$ (EV) and ${\sim}32\times$ (PV) and collapse the
 source/target Fisher-scale mismatch from $211\times$ to ${\sim}2\times$. A six-site multi-target
@@ -645,6 +649,56 @@ PV, \textbf{clear-sky}& $\mathbf{0.22}$\,kW & --- & no night-zeros\\
 representation, a plain warm-start suffices and CL regularisation remains
 unnecessary. The most effective ``continual-learning'' intervention here is not an
 algorithm but a change of representation imported from the application domain.
+
+%=====================================================================
+\section{Mechanistic Analysis: Why Replay Beats Regularization}
+%=====================================================================
+Beyond \emph{that} replay wins, we explain \emph{why}, with three probes at the
+production weights $\theta^{\star}$ (EV, $N{=}30$; Table~\ref{tab:mech}).
+
+\noindent\textbf{(b) Fisher-important directions coincide with the useful target
+gradients.} The source Fisher importance $F$ and the target-loss gradient
+magnitude $|g|$ are strongly aligned: $\mathrm{cosine}(F,|g|){=}0.82$,
+Spearman $\rho{=}0.61$, and \textbf{$62\%$ of the target-gradient energy lies in
+the top-decile Fisher directions} (vs.\ $10\%$ if unrelated). Because source and
+target share the \emph{task} but differ in \emph{regime}, the parameters that
+matter for the source are exactly those the target must move.
+
+\noindent\textbf{(a) EWC redirects motion away from the useful directions.} Over
+fine-tuning, EWC (B1) moves the weights a similar total distance to a plain
+fine-tune (relative displacement $0.019$ vs.\ $0.020$) yet its target error barely
+falls ($0.80\!\to\!0.75$ vs.\ $0.76\!\to\!0.47$ for plain), and its source
+retention is \emph{no better} ($0.55$ vs.\ $0.52$). EWC does not freeze motion --
+it steers it \emph{out of} the high-Fisher (i.e.\ target-useful) directions, so the
+motion buys neither plasticity nor stability.
+
+\noindent\textbf{(c) Replay works by coverage, not magic.} Sweeping the replay
+buffer size, source retention only improves once the buffer covers the source
+distribution: nRMSE $0.50$ at $50$ samples (no gain over warm-start) $\to 0.39$ at
+${\ge}10^3$ samples, then plateaus. Replay's advantage is direct re-exposure and
+costs ${\sim}10^3$ stored source samples --- a concrete, honest memory budget.
+
+\begin{table}[t]
+\centering
+\caption{Mechanistic probes (EV, $N{=}30$). EWC anchors the wrong directions;
+replay needs source coverage.}
+\label{tab:mech}
+\begin{tabular}{ll}
+\toprule
+Probe & Finding\\
+\midrule
+(b) $F$ vs.\ target grad. & cosine $0.82$; $62\%$ energy in top-10\% $F$\\
+(a) EWC displacement      & moves $0.019$, target error $0.80{\to}0.75$ (flat)\\
+(a) plain displacement    & moves $0.020$, target error $0.76{\to}0.47$\\
+(c) replay buffer $50$    & retention $0.50$ (no gain)\\
+(c) replay buffer ${\ge}10^3$ & retention $0.39$ (plateau)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Together: in cross-regime transfer, regularising toward $\theta^{\star}$
+fights exactly the updates the target needs, while replay supplies the source
+objective directly --- provided it covers the source.
 
 %=====================================================================
 \section{Discussion}
