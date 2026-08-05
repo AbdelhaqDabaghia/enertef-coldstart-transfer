@@ -604,7 +604,11 @@ Re-training the EV source model in per-unit and transferring to the UK
 motivated our RQ3 fairness control was itself a scaling artefact, not an intrinsic
 property. Second, warm-start transfer error \textbf{drops from $\nrmse{=}0.53$ to
 $0.35{\pm}0.02$} (a ${\sim}33\%$ reduction, 5 seeds), while the
-warm-start$\gg$from-scratch gap persists. Part of the ``high absolute error'' we (and a critical reviewer) noted
+warm-start$\gg$from-scratch gap persists. Crucially, the gain is \emph{not} an
+artefact of re-training the source: applied directly to the \textbf{deployed
+production model} (no retraining --- the target is simply rescaled to its own
+per-unit base), per-unit still cuts transfer error from $0.51$ to
+$0.39{\pm}0.04$ (${\sim}22\%$, 3 seeds), confirming a genuine transfer improvement. Part of the ``high absolute error'' we (and a critical reviewer) noted
 was thus an artefact of scaling target power through source-fitted min--max
 scalers.
 
