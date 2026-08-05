@@ -1,0 +1,7 @@
+target,capacity_kw,scale_ratio,W_pvkw,W_pvkw_shape,weather_mmd2
+industrial2,14.79,50.8,0.6505,0.02016,0.0346
+industrial3_pv_roof,10.96,68.5,0.6737,0.02472,0.0338
+pv,15.0,50.1,0.7455,0.06469,0.0311
+residential1,8.08,93.0,0.6887,0.02627,0.0289
+residential4,8.53,88.1,0.7233,0.03764,0.0264
+residential6,7.63,98.5,0.7346,0.02722,0.0233

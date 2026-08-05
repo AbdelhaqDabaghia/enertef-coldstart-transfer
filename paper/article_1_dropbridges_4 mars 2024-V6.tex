@@ -58,7 +58,10 @@ sweep confirm that \emph{no} regulariser variant reaches replay's retention.
 We then \textbf{replicate the entire protocol on a second, physically distinct
 task} --- PV generation forecasting (Luxembourg $\rightarrow$ a real published
 household in Konstanz, Germany) --- and obtain the same verdict, showing the
-result is not EV-specific. We characterise each domain shift (dominated by a
+result is not EV-specific. A six-site multi-target
+study shows warm-start generalises across sites (a $13$--$43\times$ gain over
+from-scratch), while the domain-distance$\rightarrow$transfer-gap relation stays
+directional but underpowered. We characterise each domain shift (dominated by a
 $6\times$ demand-scale gap for EV, $50\times$ for PV) and release a fully
 reproducible, GPU-accelerated pipeline.
 \end{abstract}
@@ -310,7 +313,7 @@ statistically indistinguishable from a plain warm-start (B3).
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_rq1_coldstart.png}
+\includegraphics[width=0.92\linewidth]{figures/fig_rq1_coldstart.pdf}
 \caption{RQ1: target $\nrmse$ vs.\ available target data $N$ (log scale, mean$\pm$std
 over 3 seeds). Warm-start ($\text{B3}/\text{B4}$) strongly outperforms
 from-scratch (B0).}
@@ -340,13 +343,13 @@ warm-start) at a modest target cost. EWC (B1/B4) does not improve retention over
 plain warm-start; from-scratch (B0) is worst on both axes (it never saw the
 source).
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_rq2_tradeoff.png}
+\includegraphics[width=\linewidth]{figures/fig_rq2_tradeoff.pdf}
 \caption{RQ2: stability--plasticity trade-off at $N{=}30$ (mean$\pm$std). Lower-left
 is better. Replay (B5) alone reaches low source-retention error.}
 \label{fig:rq2}
-\end{figure}
+\end{figure*}
 
 \begin{table}[t]
 \centering
@@ -381,7 +384,7 @@ transferred Fisher is intrinsically harmful.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.86\linewidth]{figures/fig_rq3_fisher.png}
+\includegraphics[width=0.86\linewidth]{figures/fig_rq3_fisher.pdf}
 \caption{RQ3: source vs.\ target Fisher at matched (raw) $\lambda{=}100$. The gap
 is a scale artifact (see text); it vanishes under normalisation.}
 \label{fig:rq3}
@@ -416,13 +419,13 @@ learning-rate/epoch sweep (a trivial ``adapt less, forget less'' knob) is
 retention ($0.56$) never approaches replay's ($0.40$). Thus replay's retention
 advantage is real and not reproducible by simple under-regularisation or by EWC.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_bench_ewc.png}
+\includegraphics[width=\linewidth]{figures/fig_bench_ewc.pdf}
 \caption{Improved-EWC bench at $N{=}30$: every EWC variant lands up-and-right of
 (i.e.\ worse than) warm-start and replay.}
 \label{fig:bench}
-\end{figure}
+\end{figure*}
 
 \begin{table}[t]
 \centering
@@ -476,7 +479,7 @@ is inflated by night-time zeros --- a metric caveat rarely acknowledged.)
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\linewidth]{figures/fig_pv_rq1.png}
+\includegraphics[width=0.92\linewidth]{figures/fig_pv_rq1.pdf}
 \caption{PV RQ1: target RMSE (kW, log) vs.\ $N$. Warm-start (B3/B4) is an order of
 magnitude below from-scratch (B0).}
 \label{fig:pvrq1}
@@ -500,6 +503,52 @@ B5 warm+replay           & $11.7\pm2.3$ & $\mathbf{0.67\pm.05}$\\
 \end{tabular}
 \end{table}
 
+\subsection{Multi-target generalisation and domain distance}
+To probe generalisation \emph{across sites} and to relate transfer quality to
+domain distance, we repeat the warm-start (B3) and from-scratch (B0) conditions
+on \emph{six} real OPSD Konstanz PV systems (capacities $7.6$--$15$\,kW, i.e.\
+source$\rightarrow$target scale ratios $50$--$98\times$), reporting a
+capacity-normalised error $\nrmse_{\mathrm{cap}}=\mathrm{RMSE}/\text{capacity}$ so
+sites of different sizes are comparable (Table~\ref{tab:multi},
+Fig.~\ref{fig:multi}). \textbf{Warm-start generalises robustly}: it beats
+from-scratch by $13$--$43\times$ at every site ($\nrmse_{\mathrm{cap}}\!\in\![0.26,0.84]$).
+However, we do \emph{not} find a statistically significant relationship between
+domain distance and transfer error: Spearman's $\rho=+0.43$ ($p=0.40$) against the
+scale ratio and $-0.54$ ($p=0.27$) against the generation-shape distance
+($n{=}6$). The direction (larger shift, worse transfer) matches intuition but is
+underpowered, because these targets share one location (hence near-constant
+weather distance) and per-site data quality dominates the residual variance.
+Establishing the distance--gap law --- an experiment rarely attempted --- would
+require geographically diverse targets (varying the weather distance too) and more
+sites; we report the honest, inconclusive result here rather than over-claim.
+
+\begin{table}[t]
+\centering
+\caption{Multi-target PV (warm-start, $N{=}90$, 2 seeds), sorted by transfer error.}
+\label{tab:multi}
+\begin{tabular}{lccc}
+\toprule
+Target (Konstanz) & scale ratio & shape dist.\ $W$ & $\nrmse_{\mathrm{cap}}$ (warm)\\
+\midrule
+residential4        & $88\times$ & 0.038 & $\mathbf{0.26}$\\
+residential3        & $50\times$ & 0.065 & 0.34\\
+industrial2         & $51\times$ & 0.020 & 0.35\\
+residential6        & $99\times$ & 0.027 & 0.44\\
+industrial3 (roof)  & $69\times$ & 0.025 & 0.51\\
+residential1        & $93\times$ & 0.026 & 0.84\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.90\linewidth]{figures/fig_multitarget.pdf}
+\caption{Multi-target PV: source$\rightarrow$target scale ratio vs.\ warm-start
+transfer error across six real Konstanz sites. Warm-start helps everywhere; the
+distance--error trend is directional but not significant ($n{=}6$, one location).}
+\label{fig:multi}
+\end{figure}
+
 %=====================================================================
 \section{Discussion}
 %=====================================================================
@@ -518,10 +567,11 @@ over EWC regularisation}.
 %=====================================================================
 \section{Limitations}
 %=====================================================================
-We state these plainly. (1)~\emph{A single target site, architecture and task}:
-our ``EWC does not help'' claim is empirical for this transfer and cannot be
-generalised; relating domain distance to the transfer gap (RQ3's broader aim)
-requires additional target sites. (2)~\emph{Weather approximations}: the UK site
+We state these plainly. (1)~\emph{Limited diversity}: we cover two tasks and,
+for PV, six target sites, but those sites share one location; the ``EWC does not
+help'' claim is empirical for these transfers, and the domain-distance$\rightarrow$
+transfer-gap law remains open --- it needs geographically diverse targets (to vary
+the weather distance) and more sites/seeds to reach significance. (2)~\emph{Weather approximations}: the UK site
 uses a single representative point, and the source weather was re-fetched from
 Open-Meteo (min/max reproduce the scaler exactly, but individual values
 approximate the original snapshot). (3)~The UK data reflects a \emph{smart-charging
@@ -539,9 +589,11 @@ tasks --- EV demand and PV generation --- weight transfer strongly helps, replay
 best preserves the source domain, and \emph{no} EWC variant --- including the true
 empirical Fisher, per-layer normalisation, and an EWC$+$replay hybrid --- beats a
 simple warm-start$+$replay. A scale-fairness control shows the transferred
-Fisher's apparent harm is an artifact, not an intrinsic property. Future work will
-add multiple target sites per task to relate the transfer gap to the measured
-domain distance, and evaluate replay-buffer sizing under longer continual streams.
+Fisher's apparent harm is an artifact, not an intrinsic property. A first
+multi-target step (six PV sites) shows warm-start generalises across sites while
+the domain-distance$\rightarrow$gap relation remains directional but underpowered.
+Future work adds geographically diverse targets to establish that relation, and
+evaluates replay-buffer sizing under longer continual streams.
 
 %=====================================================================
 \section*{Reproducibility}

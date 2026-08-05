@@ -15,9 +15,10 @@ import requests
 sys.path.insert(0, ".")
 from coldstart_transfer.pv import engineer_pv_features, PV_WEATHER
 
+import os
 LAT, LON = 47.6779, 9.1732           # Konstanz, DE
-SYS = "DE_KN_residential3_pv"
-CAP_KW = 15.0                        # physical clip for residential resets/spikes
+SYS = os.environ.get("PV_SYS", "DE_KN_residential3_pv")
+OUT_CSV = os.environ.get("PV_OUT", "Data/pv_target/konstanz_pv_features.csv")
 
 
 def load_power():
@@ -28,8 +29,12 @@ def load_power():
     # clean 15-min grid over the covered span
     grid = pd.date_range(df.ts.min(), df.ts.max(), freq="15min", tz="UTC")
     s = df.set_index("ts")[SYS].reindex(grid).interpolate(limit=8)  # bridge <=2h gaps
-    # cumulative kWh -> power kW = dE * 4 (per 15 min); reset/spike cleanup
-    p = (s.diff() * 4.0).clip(lower=0.0, upper=CAP_KW)
+    # cumulative kWh -> power kW = dE * 4 (per 15 min); reset/spike cleanup:
+    # negatives (counter resets) -> 0; robust per-system cap = 99.9th pct of positives
+    raw = (s.diff() * 4.0)
+    pos = raw[raw > 0]
+    cap = float(pos.quantile(0.999)) if len(pos) else 1.0
+    p = raw.clip(lower=0.0, upper=cap)
     out = pd.DataFrame({"timestamp": grid, "pv_kw": p.to_numpy()}).dropna().reset_index(drop=True)
     print(f"[pv] {SYS}: {len(out)} steps [{out.timestamp.iloc[0]} .. {out.timestamp.iloc[-1]}]  "
           f"pv_kw max={out.pv_kw.max():.2f} mean={out.pv_kw.mean():.3f}")
@@ -62,8 +67,8 @@ def main():
     for c in PV_WEATHER:
         raw[c] = wx15[c].to_numpy()
     feat = engineer_pv_features(raw)
-    feat.to_csv("Data/pv_target/konstanz_pv_features.csv", index=False)
-    print(f"[out] wrote Data/pv_target/konstanz_pv_features.csv ({len(feat)} rows, "
+    feat.to_csv(OUT_CSV, index=False)
+    print(f"[out] wrote {OUT_CSV} ({len(feat)} rows, "
           f"{feat.shape[1]} cols)")
 
 
