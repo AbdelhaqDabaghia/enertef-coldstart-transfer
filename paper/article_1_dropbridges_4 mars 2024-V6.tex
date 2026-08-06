@@ -363,11 +363,14 @@ B4 (warm+EWC)  & $0.91\pm.04$ & $0.92\pm.02$ & $0.53\pm.02$ & $0.55\pm.03$ & $0.
 
 \subsection{RQ2 --- Stability--plasticity trade-off}
 At a data-rich checkpoint ($N{=}30$), we measure both target error and source
-retention (Fig.~\ref{fig:rq2}, Table~\ref{tab:rq2}). \textbf{Replay (B5) wins the
-trade-off}: it achieves by far the best source retention ($0.40$ vs.\ $0.56$ for
-warm-start) at a modest target cost. EWC (B1/B4) does not improve retention over a
-plain warm-start; from-scratch (B0) is worst on both axes (it never saw the
-source).
+retention (Fig.~\ref{fig:rq2}, Table~\ref{tab:rq2}; $8$ seeds). \textbf{Replay
+(B5) wins the trade-off}: it achieves by far the best source retention ($0.43$
+vs.\ $0.56$ for warm-start). Paired Wilcoxon tests over the $8$ seeds make the
+claims precise: replay improves retention significantly ($p{=}0.008$) at a
+significant target cost ($p{=}0.008$), whereas \textbf{EWC (B4) is
+\emph{statistically indistinguishable} from plain warm-start (B3) on target error}
+($p{=}0.31$) --- EWC buys no plasticity. From-scratch (B0) is worst on both axes
+(it never saw the source).
 
 \begin{figure*}[t]
 \centering
@@ -379,17 +382,17 @@ is better. Replay (B5) alone reaches low source-retention error.}
 
 \begin{table}[t]
 \centering
-\caption{RQ2/RQ3 at $N{=}30$ (mean$\pm$std, 3 seeds).}
+\caption{RQ2/RQ3 at $N{=}30$ (mean$\pm$std, \textbf{8 seeds}).}
 \label{tab:rq2}
 \begin{tabular}{lcc}
 \toprule
 Condition & target $\nrmse$ & source-retention $\nrmse$\\
 \midrule
-B0 from-scratch          & $0.92\pm.05$ & $1.51\pm.15$\\
+B0 from-scratch          & $1.06\pm.16$ & $1.54\pm.09$\\
 B3 warm, no-EWC          & $\mathbf{0.52\pm.02}$ & $0.56\pm.03$\\
-B1 warm+EWC (src Fisher) & $0.78\pm.01$ & $0.62\pm.01$\\
-B4 warm+EWC (tgt Fisher) & $0.53\pm.02$ & $0.56\pm.03$\\
-B5 warm+replay           & $0.68\pm.02$ & $\mathbf{0.40\pm.02}$\\
+B1 warm+EWC (src Fisher) & $0.77\pm.01$ & $0.62\pm.01$\\
+B4 warm+EWC (tgt Fisher) & $0.52\pm.02$ & $0.56\pm.03$\\
+B5 warm+replay           & $0.71\pm.02$ & $\mathbf{0.43\pm.03}$\\
 \bottomrule
 \end{tabular}
 \end{table}
