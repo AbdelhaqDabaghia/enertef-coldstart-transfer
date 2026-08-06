@@ -18,6 +18,8 @@
 \usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
 \usepackage[colorlinks=true,allcolors=blue]{hyperref}
 
+\let\proof\relax\let\endproof\relax % IEEEtran predefines these; let amsthm own them
+\usepackage{amsthm}
 \newtheorem{proposition}{Proposition}
 \newcommand{\nrmse}{\mathrm{nRMSE}}
 \newcommand{\thesource}{\mathcal{D}_{\mathrm{S}}}
@@ -713,7 +715,7 @@ reduction is strict.
 \begin{proof}
 When $A_{s,t}R_{s,t}\ge 0$ the two terms share sign (or one is zero), so
 $|A_{s,t}+R_{s,t}|=|A_{s,t}|+|R_{s,t}|\ge|R_{s,t}|=M_{\mathrm{norm}}$; strictness
-follows when $|A_{s,t}|>0$. \qed
+follows when $|A_{s,t}|>0$.
 \end{proof}
 
 \paragraph{Realistic version.} For \emph{separately} trained raw and normalised
