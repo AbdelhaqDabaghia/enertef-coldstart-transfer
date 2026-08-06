@@ -18,6 +18,7 @@
 \usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
 \usepackage[colorlinks=true,allcolors=blue]{hyperref}
 
+\newtheorem{proposition}{Proposition}
 \newcommand{\nrmse}{\mathrm{nRMSE}}
 \newcommand{\thesource}{\mathcal{D}_{\mathrm{S}}}
 \newcommand{\thetarget}{\mathcal{D}_{\mathrm{T}}}
@@ -661,6 +662,91 @@ PV, \textbf{clear-sky}& $\mathbf{0.22}$\,kW & --- & no night-zeros\\
 representation, a plain warm-start suffices and CL regularisation remains
 unnecessary. The most effective ``continual-learning'' intervention here is not an
 algorithm but a change of representation imported from the application domain.
+
+%---------------------------------------------------------------------
+\subsection{A scale-decomposition model of the Fisher mismatch}
+\label{sec:scale-model}
+The $211\times\!\to\!2\times$ collapse invites a theoretical question: \emph{under
+what conditions must} per-unit normalisation reduce the source--target importance
+mismatch? We deliberately do \emph{not} claim the unconditional inequality
+$M(\Omega^{\mathrm{norm}})\le M(\Omega^{\mathrm{raw}})$: normalisation changes the
+optimisation trajectory, the learned representation, and the local gradients, so
+for two independently trained networks a chosen mismatch statistic \emph{can}
+increase. A useful result must therefore be \emph{conditional}. The key is to
+separate a \emph{nuisance scale} discrepancy (different site capacities / output
+magnitudes) from a \emph{structural} discrepancy (genuinely different dynamics,
+weather, behaviour) --- normalisation is designed to remove the former, not the
+latter.
+
+Let $\Omega_d\in\mathbb{R}_{+}^{p}$ be the diagonal importance vector at site $d$
+and $S(\Omega_d)=\tfrac1p\sum_j\Omega_{d,j}>0$ its mean. Working in logarithms
+makes scale factors additive; we use the \emph{symmetric} log-mismatch
+\begin{equation}
+M(\Omega_s,\Omega_t)=\bigl|\log S(\Omega_s)-\log S(\Omega_t)\bigr|,
+\label{eq:logmismatch}
+\end{equation}
+preferred over a raw ratio because $M(\Omega_s,\Omega_t)=M(\Omega_t,\Omega_s)$.
+We assume only a \emph{multiplicative} scale model (the exponent is left
+unspecified --- a controlled fit suggesting $c_d\propto b_d^{4}$ is reported as
+supplementary evidence, not required here):
+\begin{equation}
+S(\Omega_d^{\mathrm{raw}})=c_d\,S(\Omega_d^{\mathrm{struct}}),\qquad c_d>0,
+\label{eq:scalemodel}
+\end{equation}
+with $c_d$ a site-dependent nuisance factor and $S(\Omega_d^{\mathrm{struct}})$ the
+scale-free component.
+
+\paragraph{Idealisation.} If normalisation exactly removes the nuisance factor,
+$S(\Omega_d^{\mathrm{norm}})=S(\Omega_d^{\mathrm{struct}})$, then writing
+$A_{s,t}=\log(c_s/c_t)$ (nuisance discrepancy) and
+$R_{s,t}=\log\!\bigl(S(\Omega_s^{\mathrm{struct}})/S(\Omega_t^{\mathrm{struct}})\bigr)$
+(structural residual), Eq.~\eqref{eq:scalemodel} gives
+$M_{\mathrm{raw}}=|A_{s,t}+R_{s,t}|$ and $M_{\mathrm{norm}}=|R_{s,t}|$.
+
+\begin{proposition}[Scale-aligned mismatch reduction]
+\label{prop:scale}
+If the nuisance and structural discrepancies share sign,
+$A_{s,t}\,R_{s,t}\ge 0$, then normalisation cannot increase the mismatch:
+$M_{\mathrm{norm}}\le M_{\mathrm{raw}}$; if additionally $A_{s,t}\neq 0$ the
+reduction is strict.
+\end{proposition}
+\begin{proof}
+When $A_{s,t}R_{s,t}\ge 0$ the two terms share sign (or one is zero), so
+$|A_{s,t}+R_{s,t}|=|A_{s,t}|+|R_{s,t}|\ge|R_{s,t}|=M_{\mathrm{norm}}$; strictness
+follows when $|A_{s,t}|>0$. \qed
+\end{proof}
+
+\paragraph{Realistic version.} For \emph{separately} trained raw and normalised
+models Eq.~\eqref{eq:scalemodel} holds only up to a residual
+$\varepsilon_d$ (retraining, representation drift, estimation noise):
+$\log S(\Omega_d^{\mathrm{raw}})=\log c_d+\log S(\Omega_d^{\mathrm{norm}})+\varepsilon_d$,
+so $M_{\mathrm{raw}}=|A_{s,t}+R_{s,t}+E_{s,t}|$ with $E_{s,t}=\varepsilon_s-\varepsilon_t$.
+A robust sufficient condition for reduction is then
+\begin{equation}
+A_{s,t}\,R_{s,t}\ge 0 \quad\text{and}\quad |E_{s,t}|<|A_{s,t}|,
+\label{eq:robustcond}
+\end{equation}
+i.e.\ the nuisance scale \emph{reinforces} rather than cancels the structural
+mismatch, and retraining-induced drift is smaller than the removed scale effect.
+
+\paragraph{Empirical test of the condition.} We verify
+Eq.~\eqref{eq:robustcond} directly, with \emph{no retraining}, by estimating
+$S(\Omega)$ (mean diagonal output-sensitivity Fisher) on the \textbf{deployed
+production model} for the LU source and the UK target, in the raw and per-unit
+representations ($N{=}30$, 3 seeds). We measure
+$A_{s,t}=+4.40{\pm}0.12$ and $R_{s,t}=+0.40{\pm}0.06$: both are positive (the
+sign condition $A_{s,t}R_{s,t}>0$ holds on \emph{every} seed), and the residual
+$|E_{s,t}|$ is contained within the reported spread, well below $|A_{s,t}|$. The
+mismatch collapses from $M_{\mathrm{raw}}{=}4.80$ (a ${\sim}122\times$ ratio) to
+$M_{\mathrm{norm}}{=}0.40$ (${\sim}1.5\times$), an $81\times$ reduction --- the
+deployed-model counterpart of the $211\times\!\to\!2\times$ figure obtained when
+the source is retrained (Table~\ref{tab:reform}). Two facts matter for honesty:
+the reduction is a \emph{consequence of a verified sufficient condition}, not an
+assumption; and $R_{s,t}>0$ shows a genuine residual structural difference
+survives normalisation --- per-unit removes the scale nuisance, not all cross-site
+mismatch. We make no claim that the removed factor $c_d$ is \emph{exactly} physical
+capacity or exactly $b_d^{4}$; only that a dominant, sign-aligned scale component
+is removed.
 
 %=====================================================================
 \section{Mechanistic Analysis: Why Replay Beats Regularization}
