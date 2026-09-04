@@ -1,0 +1,7 @@
+task,baseline,lag_steps,holdout_steps,rmse_kw,nrmse,mean_true_kw
+EV (LU->UK),naive-1,1,1344,7.4736,0.324461,23.0338
+EV (LU->UK),seasonal-day,96,1344,14.1389,0.613832,23.0338
+EV (LU->UK),seasonal-week,672,1344,11.1871,0.485681,23.0338
+PV (LU->Konstanz),naive-1,1,1344,0.2348,0.349958,0.671
+PV (LU->Konstanz),seasonal-day,96,1344,0.4438,0.661427,0.671
+PV (LU->Konstanz),seasonal-week,672,1344,0.426,0.634883,0.671

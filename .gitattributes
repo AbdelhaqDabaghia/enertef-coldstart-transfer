@@ -1,0 +1,3 @@
+# Shell scripts must stay LF so they run under WSL/Linux bash on the GPU machine
+# (a CRLF checkout triggers `$'\r': command not found` errors).
+*.sh text eol=lf
