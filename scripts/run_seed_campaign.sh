@@ -43,17 +43,20 @@ mkdir -p "$STATS"
 
 echo "[campaign] SEEDS=$SEEDS  PY=$PY  target-δ=$TOST_T  retention-δ=$TOST_S"
 
-# (module -> output CSV) that were run at 3 seeds and feed a central table.
-# NOTE: the full CL-taxonomy table (MAS/LwF/DER++/A-GEM) has NO driver in THIS
-# repo -- confirm where it is produced before claiming 10 seeds for it.
+# (module -> output CSV) that are still at 3 seeds and feed a central table.
+# rq2_rq3_source (driver_source) is ALREADY at 8 seeds (commit 5ebd541) and the
+# representation ablation is already 8 seeds, so neither is re-run by default;
+# set INCLUDE_RQ2=1 to also bump RQ2/RQ3 to a uniform 10 seeds.
 declare -a JOBS=(
-  "coldstart_transfer.driver            rq1_coldstart.csv"        # tab:rq1  (RQ1)
-  "coldstart_transfer.driver_source     rq2_rq3_source.csv"       # tab:rq2  (RQ2/RQ3)
-  "coldstart_transfer.driver_ewc_bench  ewc_bench.csv"            # tab:bench
-  "coldstart_transfer.driver_fisher_control rq3_fisher_control.csv" # tab:rq3
-  "coldstart_transfer.driver_pv         pv_rq1_coldstart.csv"     # PV tab:pv RQ1
-  "coldstart_transfer.driver_pv_source  pv_rq2_rq3_source.csv"    # PV tab:pv RQ2/RQ3
+  "coldstart_transfer.driver             rq1_coldstart.csv"       # tab:rq1  (RQ1)
+  "coldstart_transfer.driver_ewc_bench   ewc_bench.csv"           # tab:bench (V1/V2/V3)
+  "coldstart_transfer.driver_cl_methods  cl_methods_bench.csv"    # tab:clsuite (MAS/LwF/DER++/A-GEM)
+  "coldstart_transfer.driver_pv          pv_rq1_coldstart.csv"    # PV tab:pv RQ1
+  "coldstart_transfer.driver_pv_source   pv_rq2_rq3_source.csv"   # PV tab:pv RQ2/RQ3
 )
+if [[ "${INCLUDE_RQ2:-0}" == "1" ]]; then
+  JOBS+=("coldstart_transfer.driver_source rq2_rq3_source.csv")   # tab:rq2 (already 8 seeds)
+fi
 
 if [[ "${SKIP_RUN:-0}" != "1" ]]; then
   mkdir -p "$ARCH"
@@ -86,5 +89,14 @@ echo "[campaign] generating statistics -> $STATS/"
 "$PY" -m coldstart_transfer.stats_report --csv "$RES/rq2_rq3_source.csv" \
   --group baseline --ref B3 --metric source_retention_nrmse --tost-margin "$TOST_S" \
   --out "$STATS/rq2_retention.md"
+# Full CL taxonomy (MAS/LwF/DER++/A-GEM vs B3/B5), keyed by the baseline column
+if [[ -f "$RES/cl_methods_bench.csv" ]]; then
+  "$PY" -m coldstart_transfer.stats_report --csv "$RES/cl_methods_bench.csv" \
+    --group baseline --ref B3 --metric target_nrmse --tost-margin "$TOST_T" \
+    --out "$STATS/cl_methods_target.md"
+  "$PY" -m coldstart_transfer.stats_report --csv "$RES/cl_methods_bench.csv" \
+    --group baseline --ref B3 --metric source_retention_nrmse --tost-margin "$TOST_S" \
+    --out "$STATS/cl_methods_retention.md"
+fi
 
 echo "[campaign] DONE. Stats markdown in $STATS/  (archived raw in $ARCH)"
