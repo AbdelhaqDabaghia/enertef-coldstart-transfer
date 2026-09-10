@@ -101,4 +101,5 @@ def run_cl_method(method, target_train, target_holdout, scalers, prod_keras_path
             "target_mean_kw": round(tgt_mean, 4),
             "source_retention_nrmse": round(src_nrmse, 6) if src_nrmse is not None else "",
             "epochs": epochs, "batch_size": batch_size, "lr": lr,
-            "wall_clock_s": round(time.time()-t0, 1)}
+            "wall_clock_s": round(time.time()-t0, 1),
+            "model": model}   # for optional reuse; logger drops unknown fields

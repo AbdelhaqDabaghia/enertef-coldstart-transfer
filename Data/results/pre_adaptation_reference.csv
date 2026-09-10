@@ -1,0 +1,5 @@
+task,regime,split,nrmse,rmse_kw,mean_true_kw,bias_kw,corr,n
+EV (LU->UK),MinMax (production scalers),source_retention,0.547884,31.1844,56.9179,-15.1724,0.9583,672
+EV (LU->UK),MinMax (production scalers),target_zero_shot,0.796406,18.3442,23.0338,-9.7097,0.602,1344
+PV (LU->Konstanz),MinMax (production scalers),source_retention,0.612634,10.2914,16.7987,-0.8768,0.9439,672
+PV (LU->Konstanz),MinMax (production scalers),target_zero_shot,66.480974,44.6056,0.671,27.3041,0.9375,1344

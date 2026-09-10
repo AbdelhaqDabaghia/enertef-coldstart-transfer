@@ -1,0 +1,7 @@
+control,split,predictor,nrmse,n,mean_true_kw
+revin_null,target_holdout,mu (RevIN null),0.845545,1344,23.0338
+revin_null,target_holdout,last observed,0.324461,1344,23.0338
+revin_null,source_retention,mu (RevIN null),1.347043,672,56.9179
+revin_null,source_retention,last observed,0.99836,672,56.9179
+minmax_pre_adaptation,source_retention,"production model, no fine-tune",0.547884,672,56.9179
+minmax_pre_adaptation,target_holdout,"production model, no fine-tune (zero-shot)",0.796406,1344,23.0338

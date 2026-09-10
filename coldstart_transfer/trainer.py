@@ -70,8 +70,12 @@ def run_condition(baseline, target_train, target_holdout, scalers,
                   seed=0, epochs=10, batch_size=32, lr=1e-4,
                   source_train=None, source_holdout=None, m_fisher=500,
                   normalize_fisher=False, normalize_mode="global",
-                  model_builder=None):
-    """Run one condition end-to-end; return a result dict (see logger.FIELDS)."""
+                  model_builder=None, freeze_fn=None):
+    """Run one condition end-to-end; return a result dict (see logger.FIELDS).
+
+    freeze_fn: optional callable(model) applied right after the warm-start, used
+    by the freeze-depth sweep to set layer.trainable=False on part of the trunk.
+    Left as None (the default) the code path is byte-for-byte the B0-B5 one."""
     spec = _SPEC[baseline]
     keras.utils.set_random_seed(seed)
     t0 = time.time()
@@ -89,6 +93,9 @@ def run_condition(baseline, target_train, target_holdout, scalers,
     model = builder(seed=seed)
     if spec["warm"]:
         load_production_weights(model, prod_keras_path)
+    # Freeze BEFORE the Fisher/star snapshot so every downstream use of
+    # model.trainable_variables sees the same, already-reduced variable list.
+    n_frozen = freeze_fn(model) if freeze_fn is not None else 0
     star = ewc_mod.snapshot_params(model) if spec["use_ewc"] else None
 
     # --- Fisher (source-transfer B1, or target-re-estimation B4) ---
@@ -153,6 +160,7 @@ def run_condition(baseline, target_train, target_holdout, scalers,
         "target_mean_kw": round(tgt_mean, 4),
         "source_retention_nrmse": round(src_nrmse, 6) if src_nrmse is not None else "",
         "epochs": epochs, "batch_size": batch_size, "lr": lr,
+        "n_frozen_params": n_frozen,
         "wall_clock_s": round(time.time() - t0, 1),
         "model": model,  # returned for optional reuse; not logged
     }
