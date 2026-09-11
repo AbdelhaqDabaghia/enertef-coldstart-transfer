@@ -1,0 +1,7 @@
+variant,seed,source_holdout_nrmse,target_zeroshot_nrmse
+leaky,0,0.608108,0.925064
+leaky,1,0.683517,1.06658
+leaky,2,0.588744,0.987446
+causal,0,0.901635,1.304609
+causal,1,0.889386,1.394692
+causal,2,0.895487,1.636131
