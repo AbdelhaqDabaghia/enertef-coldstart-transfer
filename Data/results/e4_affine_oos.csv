@@ -1,0 +1,5 @@
+variant,nrmse,a,b
+as-is,0.547884,1.0,0.0
+affine_in_sample,0.38441,1.2841,3.3124
+affine_out_of_sample,0.396145,1.3718,1.785
+scale_only_out_of_sample,0.398332,1.3867,0.0
