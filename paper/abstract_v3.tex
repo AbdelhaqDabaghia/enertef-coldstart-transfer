@@ -1,0 +1,58 @@
+% ════════════════════════════════════════════════════════════════════
+% abstract_v3.tex -- rewritten on measured values only.
+%
+% Every number below is traceable to a committed CSV:
+%   1.372, 0.548 -> 0.396      Data/results/e4_affine_oos.csv
+%   0.43 / 0.002, dz -3.09     Data/results/e13_gauge_decomposition.csv (n=10)
+%   0.128 -> 0.090             idem
+%   15.7 / 1196.8, 18.9 /
+%     1181.4, -0.14 %          Data/results/e16_selection_oracle.csv (n=35)
+%   9.55 / 7.86 EUR/day        Data/results/e18_mpc_two_sites.csv (21 days)
+%
+% REMOVED from v2, and why:
+%   - "eight regularisation variants retain better than replay (Holm p=0.023,
+%     dz -7.75)". That test was against B3_warm, not replay. Against replay no
+%     variant is significant (MAS p_Holm = 0.109). The claim was false.
+%   - "1.74 EUR/day, 1.55 % of the bill" between naive persistence and perfect
+%     foresight. Wrong arm (PV-persistence / perfect-demand; all-naive is 2.07)
+%     and superseded by e18 on the controller that actually runs.
+%   - the "-4.2 % to -4.9 %" band. The real range is -1.07 % to -4.93 %; v2
+%     quoted the two best points as if they were the interval.
+% ════════════════════════════════════════════════════════════════════
+
+\begin{abstract}
+Forecasting models deployed at commercial energy sites degrade as operating
+conditions drift, and continual learning is the standard remedy. Which
+mechanism to deploy is normally fixed at design time and justified by a
+retention metric. We report a deployment study at a Luxembourg commercial
+energy community which finds that metric to be unreliable in two distinct
+ways. \emph{First}, a substantial part of what is measured as forgetting is
+output gauge rather than lost structure: the deployed model under-predicts its
+own source domain by a factor $1.372$, and a single scalar fitted out of sample
+removes $28\%$ of its error ($0.548 \to 0.396$~nRMSE). Correcting for gauge
+changes the conclusions it is used to draw --- an output-sensitivity
+regulariser is indistinguishable from plain fine-tuning before correction
+($p{=}0.43$) and significantly better after it ($p{=}0.002$, paired
+$d_z{=}-3.09$, ten seeds), while bounded replay retains a genuine advantage of
+which roughly $30\%$ was amplitude. \emph{Second}, and independently, retention
+measured in forecast error does not order mechanisms the way the deployed
+controller does. Settling each forecaster's plan against realised demand and
+generation through the site's model-predictive scheduler, replay attains the
+best forecast error ($15.7$~kW MAE) together with the worst controller cost,
+and the regulariser the reverse ($18.9$~kW, best cost); over $35$ day--seed
+pairs an oracle that selects the best forecaster daily improves on the best
+fixed choice by only $0.14\%$, which bounds what any online orchestrator can
+recover. We further find the controller's own reported savings to be computed
+forecast-against-forecast; settled against measurement under day-ahead prices
+they are $7.86$ rather than $9.55$~EUR/day. We therefore propose a retention
+protocol that reports the pre-adaptation reference, separates calibration from
+shape, and prices the residual through the downstream decision. Evidence is
+from one site and one architecture; the seed replication bounds initialisation
+variance, not variation across sites.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Continual learning, catastrophic forgetting, evaluation methodology,
+decision-focused evaluation, model predictive control, electric vehicle
+charging, concept drift.
+\end{IEEEkeywords}

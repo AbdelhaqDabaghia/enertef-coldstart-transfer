@@ -1,0 +1,742 @@
+% ============================================================================
+% EnerTEF Journal Manuscript v2
+% Merge of:
+%   Paper 1 (70%) — An Autonomous Continual-Learning Framework for EV Charging
+%   Paper 2 (30%) — Representation Beats Regularization in Energy Transfer
+% Structure follows Paper 1. Sections VI and VII carry the new contribution.
+%
+% RULE OBSERVED THROUGHOUT: every number is traceable to Paper 1, Paper 2, or
+% Data/results/. Nothing is invented. Missing evidence is marked
+% [REQUIRED EXPERIMENT] rather than written as if it existed.
+% ============================================================================
+\documentclass[journal]{IEEEtran}
+
+\usepackage{amsmath,amssymb,booktabs,graphicx,url,xcolor}
+\newcommand{\params}{\boldsymbol{\theta}}
+\newcommand{\ewclambda}{\lambda}
+\newcommand{\nrmse}{\mathrm{nRMSE}}
+\newcommand{\needexp}[1]{\textcolor{red}{[REQUIRED EXPERIMENT: #1]}}
+
+\begin{document}
+
+% ---------------------------------------------------------------- TITLE
+% Five candidate titles (pick one, delete the rest):
+% 1. When Rehearsal Beats Anchoring, and When It Does Not: Representation-Contingent
+%    Continual Learning for Autonomous EV Charging Forecasts
+% 2. Autonomous Continual Learning for EV Charging: Selecting the Adaptation
+%    Mechanism from Evidence
+% 3. Representation-Contingent Continual Learning in a Deployed EV Charging System
+% 4. What Retention Measures: Calibration, Coverage and Anchoring in Autonomous
+%    Energy Forecasting
+% 5. Champion--Challenger Continual Learning for Deployed Energy Forecasters
+
+\title{Autonomous Continual Learning for EV Charging:\\
+Selecting the Adaptation Mechanism from Evidence}
+
+\author{Abdelhaq Dabaghia, Pedro Rodriguez%
+\thanks{Luxembourg Institute of Science and Technology (LIST), L-4362
+Esch-sur-Alzette, and University of Luxembourg.}%
+\thanks{A preliminary version of the deployment architecture appeared in
+[conference reference]. This paper extends it with the representation analysis
+of Sections~\ref{sec:repr}--\ref{sec:selection}, a retention measurement
+protocol, and the champion--challenger selection mechanism.}}
+
+\maketitle
+
+% ---------------------------------------------------------------- ABSTRACT
+\begin{abstract}
+Forecasting models deployed at commercial energy sites degrade as operating
+conditions drift, and continual learning is the standard remedy. Which
+mechanism to deploy is normally fixed at design time and justified by a
+retention metric. We report a deployment study at a Luxembourg commercial
+energy community which finds that metric to be unreliable in two distinct
+ways. \emph{First}, a substantial part of what is measured as forgetting is
+output gauge rather than lost structure: the deployed model under-predicts its
+own source domain by a factor $1.372$, and a single scalar fitted out of sample
+removes $28\%$ of its error ($0.548 \to 0.396$~nRMSE). Correcting for gauge
+changes the conclusions it is used to draw --- an output-sensitivity
+regulariser is indistinguishable from plain fine-tuning before correction
+($p{=}0.43$) and significantly better after it ($p{=}0.002$, paired
+$d_z{=}-3.09$, ten seeds), while bounded replay retains a genuine advantage of
+which roughly $30\%$ was amplitude. \emph{Second}, and independently, retention
+measured in forecast error does not order mechanisms the way the deployed
+controller does. Settling each forecaster's plan against realised demand and
+generation through the site's model-predictive scheduler, replay attains the
+best forecast error ($15.7$~kW MAE) together with the worst controller cost,
+and the regulariser the reverse ($18.9$~kW, best cost); over $35$ day--seed
+pairs an oracle that selects the best forecaster daily improves on the best
+fixed choice by only $0.14\%$, which bounds what any online orchestrator can
+recover. We further find the controller's own reported savings to be computed
+forecast-against-forecast; settled against measurement under day-ahead prices
+they are $7.86$ rather than $9.55$~EUR/day. We therefore propose a retention
+protocol that reports the pre-adaptation reference, separates calibration from
+shape, and prices the residual through the downstream decision. Evidence is
+from one site and one architecture; the seed replication bounds initialisation
+variance, not variation across sites.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Continual learning, catastrophic forgetting, evaluation methodology,
+decision-focused evaluation, model predictive control, electric vehicle
+charging, concept drift.
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------- I. INTRO
+\section{Introduction}
+\label{sec:intro}
+
+Deployed energy forecasters are static artefacts in a non-stationary
+environment. Consumption patterns drift, seasons turn, charging infrastructure
+is extended, and the distribution of incoming data diverges from the one the
+model was trained on. Continual learning (CL) addresses this by adapting the
+model incrementally, and a substantial literature now offers mechanisms to do
+so while limiting catastrophic forgetting.
+
+Deploying such a mechanism, however, requires committing to one. A production
+pipeline adapts nightly with a specific method --- a proximal regulariser, a
+rehearsal buffer, or plain fine-tuning --- chosen at design time and rarely
+revisited. This paper argues that the choice cannot be made correctly at design
+time, because the ranking of these mechanisms is not stable across regimes.
+
+We report two experiments on the same production models that yield opposite
+orderings. In a sequential deployment over twelve monthly cycles at a commercial
+site, bounded experience replay resists seasonal forgetting while an
+output-sensitivity regulariser does not improve on naive fine-tuning at any
+regularisation strength. In a cross-site transfer study, under an
+instance-normalised output representation, the same regularisation family
+retains substantially better than replay. Neither result is an artefact: both
+rest on paired designs with unanimous per-seed signs.
+
+A second observation complicates the picture further. Retention is conventionally
+reported as the error of the adapted model on a past regime, relative to
+competing methods. We show that a large share of the differences so obtained
+reflects \emph{output calibration} rather than retained knowledge: the deployed
+model under-predicts its own source holdout by $15.2$~kW while preserving the
+signal shape at correlation $0.958$, and a single affine rescale recovers most
+of the apparent retention gap. Any method that re-trains the output layer
+captures part of this, and is credited with retention it did not perform.
+
+A third observation is independent of both and, we think, the most consequential.
+Evaluated through the site's scheduler rather than in error space, the ordering
+of mechanisms changes again: the adapted model with the lowest forecast error
+produces the highest realised operating cost. Retention measured in nRMSE is
+therefore not a proxy for retention of decision quality, which is what the
+forecast exists to supply.
+
+These findings motivate the contributions of this paper.
+\emph{First}, a measurement protocol that makes retention claims comparable:
+report the model's error on the past regime \emph{before any adaptation}, and
+report a scale-invariant term alongside the error so that calibration drift is
+distinguishable from loss of structure.
+\emph{Second}, evidence that the anchoring-versus-rehearsal ordering is
+regime-contingent, together with candidate explanations that we test and
+reject.
+\emph{Third}, an end-to-end evaluation through the site's model predictive
+control (MPC) scheduler, settling every plan against measurement, in which the
+ordering by accuracy and the ordering by decision cost are shown to disagree.
+\emph{Fourth}, a negative result: the champion--challenger mechanism that
+motivated this study --- training one candidate per adaptation family each
+cycle and letting the existing validation gate choose --- loses to committing
+to a single family, and an oracle version of it recovers $0.14\%$. We report it
+because the proposal is a natural one, and because its failure bounds what any
+online arbiter at this scale could achieve.
+
+% ---------------------------------------------------------------- II. RELATED
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Continual Learning for Energy Forecasting}
+Regularisation-based methods constrain updates by estimated parameter
+importance; rehearsal methods retain and replay past samples. Both families have
+been applied to energy forecasting, with conflicting verdicts. Studies of
+sequential adaptation within one domain report continual learning as essential
+under abrupt shift, and replay as halving forgetting on heterogeneous streams
+while tying on benign ones. Work on foundation models for time series reports
+that continual fine-tuning consistently triggers forgetting. Conversely,
+regularisation has been reported to improve stability for building load, and a
+recent study of a $95$-entity power system finds \emph{no universal winner}:
+replay wins on reconstruction stability, regularisation under concept drift.
+
+This paper takes that last observation as its starting point and asks what
+governs the contingency.
+
+\subsection{Retention Measurement}
+Most studies report retention as a comparison among adaptation methods. The
+control that makes such numbers interpretable --- the model's score on the past
+regime before any adaptation --- is rarely reported; a notable exception reports
+a warm-up baseline and a forgetting ratio defined as the relative increase in
+error on the warm-up set. We adopt and generalise that practice, and show what
+it changes.
+
+\subsection{Representation and Normalisation}
+Instance-wise normalisation and domain-native reformulations are typically
+treated as preprocessing choices. We find their effect on the CL conclusion to
+exceed the differences between CL algorithms by an order of magnitude, which
+places them inside the methodological question rather than before it.
+
+\subsection{Research Gap}
+\label{sec:gap}
+Existing work --- including our own earlier deployment study --- reports one
+ordering of adaptation mechanisms per experimental setting and generalises from
+it. What is missing is a protocol that renders retention claims comparable
+across settings, and an autonomous mechanism that selects the adaptation family
+from evidence rather than from a design-time assumption.
+
+% ---------------------------------------------------------------- III. SYSTEM
+\section{System Architecture}
+\label{sec:arch}
+
+% NOTE: condense Paper 1 Sec. III by ~30%. Keep the three-loop figure, the site
+% description, and the data layer. Cut the cloud-stack and framework-version
+% narrative, which belongs in the engineering-challenges section.
+
+The system operates at a commercial site in Luxembourg combining photovoltaic
+generation, two EV charging installations, and an energy-management controller.
+Three loops run at different time scales: a real-time control loop, a nightly
+adaptation loop, and a supervisory validation loop that governs whether an
+adapted model is deployed.
+
+\subsection{Data Layer}
+Fifteen-minute smart-meter data covering PV production and EV consumption at the
+two installations, joined with weather and calendar features. The same feature
+construction serves both the production models and the experiments reported
+here.
+
+% ---------------------------------------------------------------- IV. CL
+\section{Continual Learning Framework}
+\label{sec:cl}
+
+\subsection{Problem Statement and Notation}
+Let $\params_k$ denote the model parameters after adaptation cycle $k$, and
+$\mathcal{D}_k$ the data window available at that cycle. Adaptation seeks
+parameters that fit $\mathcal{D}_k$ without discarding behaviour learned on
+earlier windows. Retention is measured on a \emph{fixed reference window}
+$\mathcal{R}$ that the stream passed at cycle $0$, through backward transfer
+\begin{equation}
+\mathrm{BWT}(k) \;=\; \mathrm{MAE}_{\mathcal{R}}(k) - \mathrm{MAE}_{\mathcal{R}}(0),
+\label{eq:bwt}
+\end{equation}
+positive values denoting forgetting. We stress that
+$\mathrm{MAE}_{\mathcal{R}}(0)$ is a measured quantity and must be reported: it
+is the reference against which any retention claim acquires meaning
+(Section~\ref{sec:protocol}).
+
+\subsection{Forecasting Models}
+% Keep Paper 1's PV LSTM and EV CNN-LSTM subsections, condensed.
+A PV LSTM and an EV CNN--LSTM, both taken unchanged from production.
+
+\subsection{Output-Sensitivity Regularisation}
+\label{sec:osr}
+The deployed adaptation objective augments the data loss with a proximal
+penalty anchored at the previous cycle's parameters,
+\begin{equation}
+\mathcal{L}(\params) \;=\; \mathcal{L}_{\mathrm{data}}(\params;\mathcal{D}_k)
+\;+\; \frac{\ewclambda}{2}\sum_i \Omega_i\,(\theta_i - \theta^{\star}_i)^2 ,
+\label{eq:osr}
+\end{equation}
+where $\Omega_i$ is a Memory Aware Synapses-style output-sensitivity proxy
+rather than an empirical Fisher estimate. We retain the Bayesian motivation of
+this form by reference only: the deployed estimator is not a Fisher information
+matrix, and presenting it as one would misstate the method.
+
+% ---------------------------------------------------------------- V. PROTOCOL
+\section{What Retention Measures}
+\label{sec:protocol}
+
+Reported retention differences conflate three distinct phenomena: loss of
+learned structure, drift of output calibration, and additional learning on the
+past regime. We separate them.
+
+\subsection{The Pre-Adaptation Reference}
+Evaluating the transferred production model on the source holdout \emph{before
+any adaptation} gives $\nrmse = 0.5479$ for the EV model and $0.6126$ for the
+PV model. Zero-shot target error is $0.7964$ (EV) and $66.48$ (PV).
+
+Two consequences follow. A full fine-tune degrades EV source accuracy by only
+$1.7\%$ relative to this reference --- in one-shot transfer there is little
+forgetting for any mechanism to prevent. And bounded replay scores $0.4295$,
+that is $21.6\%$ \emph{better} than the model it started from: having trained on
+$60$ days of source data, it has re-learned the source rather than retained it.
+A comparison of replay against fine-tuning that omits the reference measures the
+benefit of revisiting data, not protection against forgetting.
+
+\subsection{Calibration versus Structure}
+On the same holdout, the production model under-predicts by $15.2$~kW while
+correlating with the ground truth at $0.958$: the shape of the signal is
+preserved and only its amplitude is wrong. Fitting the affine map $a\hat{y}+b$
+takes the error from $0.5479$ to $0.3844$ in sample ($a{=}1.284$, $b{=}3.31$).
+Fitted on the source \emph{pool} and applied unchanged to the holdout it still
+reaches $0.3961$ ($a{=}1.372$, $b{=}1.79$), that is $92.8\%$ of the in-sample
+gain: the correction generalises and is not an artefact of fitting on the
+evaluation window. Since any adaptation that re-trains the output layer can
+absorb such a rescale, a share of measured ``retention'' is calibration repair.
+We therefore report the correlation $\rho(\hat{y},y)$ alongside the error, and
+the residual after the out-of-sample affine map, as a scale-invariant retention
+term.
+
+This bias exists \emph{before} adaptation, on recent source data, for a model
+trained earlier --- consistent with temporal drift of the deployed artefact
+rather than with anything the adaptation did.
+
+\subsection{What Survives the Correction}
+\label{sec:gauge}
+Applying that correction to each adapted model separates amplitude from
+structure (ten seeds, Table~\ref{tab:gauge}), and two readings change.
+
+The output-sensitivity regulariser is \emph{indistinguishable} from plain
+fine-tuning on raw retention ($+0.009$, $p{=}0.43$) and significantly
+\emph{better} once the gauge is removed ($-0.047$, $p{=}0.002$, paired
+$d_z{=}-3.09$). A comparison that does not correct for amplitude therefore
+misses a real difference between the two mechanisms --- and it is the raw
+comparison that our own preliminary conference version reported.
+
+Bounded replay's advantage over fine-tuning shrinks from $-0.128$ to $-0.090$:
+approximately $30\%$ of it was amplitude, and the remainder is structural.
+Replay's advantage is therefore genuine but smaller than the raw figure
+implies. We state this against an earlier reading of our own in which the whole
+of it was attributed to gauge.
+
+\begin{table}[t]
+\centering
+\caption{Source retention before and after the out-of-sample affine
+correction (EV transfer, mean over ten seeds; lower is better). The ordering
+of the first two rows reverses.}
+\label{tab:gauge}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& Raw & Gauge-corrected & Fitted $a$ \\
+\midrule
+Pre-adaptation reference & $0.5478$ & $0.3984$ & $1.387$ \\
+\midrule
+Plain fine-tune & $0.5574$ & $0.4231$ & $1.307$ \\
+OSR (MAS-style) & $0.5662$ & $\mathbf{0.3765}$ & $1.430$ \\
+Bounded replay & $\mathbf{0.4298}$ & $0.3334$ & $1.257$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------------------------------------------------------------- VI. REPR
+\section{Representation-Contingent Adaptation}
+\label{sec:repr}
+
+% This section carries Paper 2's usable 30%.
+
+\subsection{Representation Dominates Algorithm}
+Holding architecture, data, budget and protocol fixed and varying only the
+output representation, warm-start transfer error on the EV task ranges from
+$0.95$ (production MinMax scalers) to $0.116$ (instance normalisation) --- an
+eightfold swing. Differences between EWC variants, MAS, LwF, DER++ and A-GEM
+under any single representation are an order of magnitude smaller.
+
+\subsection{Why Anchoring Fails in the Deployed Representation}
+A mechanistic analysis explains the failure of parameter anchoring reported in
+Section~\ref{sec:results_seq}. At the transferred parameters, the cosine between
+the source importance vector and the magnitude of the target-loss gradient is
+$0.82$, and approximately $62\%$ of the target-gradient energy lies in the top
+decile of source-important parameters. Anchoring therefore penalises precisely
+the updates the new regime requires.
+
+\subsection{The Ordering Inverts}
+Re-running the full CL taxonomy under instance normalisation, with the
+adaptation implementations unchanged so that only the representation differs
+($130$ runs, ten seeds), reverses the ranking. Measured against the
+pre-adaptation reference of $0.2032$, all eight regularisation variants improve
+retention, by $-1.1\%$ to $-4.9\%$, while plain fine-tuning degrades it
+($+16.4\%$); replay is intermediate ($+0.9\%$). Three further mechanisms
+degrade retention outright --- A-GEM ($+9.8\%$), DER++ ($+20.2\%$) and LwF
+($+37.7\%$) --- so the improvement is a property of the proximal-anchoring
+family and not of regularisation in general. Against plain fine-tuning, every
+one of the eight retains better at Holm-corrected $p \le 0.016$, with paired
+$d_z$ reaching $-7.75$ and a rank-biserial correlation of $-1.000$: the
+advantage holds on all ten seeds without exception.
+
+Against \emph{replay}, however, none of the eight reaches significance after
+correction (smallest $p_{\mathrm{Holm}}{=}0.096$, $d_z$ from $-0.36$ to
+$-1.01$). The inversion reported here is therefore an inversion relative to
+plain fine-tuning, and we state the weaker claim deliberately: under this
+representation regularisation overtakes fine-tuning, and matches rather than
+beats rehearsal. An earlier draft of this work asserted the stronger form, and
+it is not supported by the data.
+
+\begin{table}[t]
+\centering
+\caption{Retention relative to the pre-adaptation reference. The ordering of
+mechanism families inverts with the representation.}
+\label{tab:inversion}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+& Deployed (MinMax) & Instance-normalised \\
+\midrule
+Pre-adaptation reference & $0.5479$ & $0.2032$ \\
+\midrule
+Plain fine-tune & $+1.7\%$ & $+16.5\%$ \\
+Regularisation (EWC/MAS) & $+3.6$ to $+10\%$ & $\mathbf{-1.1}$ to $\mathbf{-4.9\%}$ \\
+Bounded replay & $\mathbf{-21.6\%}$ & $+0.9\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Explanations Tested and Rejected}
+Three candidate accounts of the inversion were tested and do not survive.
+\emph{Source-model quality}: varying only the number of source-training epochs
+so that pre-adaptation error spans $0.83$ to $0.21$, the retention advantage of
+regularisation over fine-tuning appears unchanged ($-0.040$ then $-0.039$ for
+the MAS-style estimator). We report this as indicative only: the measurement
+comes from a two-level, single-seed pilot and is not powered to exclude a
+dependence. \needexp{E6: the full source-quality grid at ten seeds, which alone
+can turn this from indicative to a rejection.}
+\emph{Directional gradient conflict}: the cosine between source and target
+gradients is positive in eleven of twelve layers (median $+0.27$), so there is
+little directional conflict for a conflict-aware mechanism to exploit.
+\emph{Selective freezing}: freezing the sequence encoder dominates both
+baselines under the deployed representation but the effect falls from $-24.7\%$
+to $-1.5\%$ relative under instance normalisation, identifying it as an artefact
+of the representation rather than a property of the architecture.
+
+A fourth account --- that the deployed model's calibration bias, rather than the
+representation, drives the result --- is under test: the two arms differ in both
+the representation and whether the source model is the deployed artefact or one
+retrained with the same recipe. \needexp{M3: two-arm calibration control, same
+representation and data, differing only in the source model.}
+
+\subsection{On a Second Task}
+The same re-run on the PV transfer, in that task's own winning representation,
+does \emph{not} invert. \needexp{M2: complete the ten-seed PV arm and report it
+whichever way it falls; a reversal observed on one task must be reported as
+regime-contingent, not universal.}
+
+% ---------------------------------------------------------------- VII. SELECT
+\section{Autonomous Deployment with Champion--Challenger Selection}
+\label{sec:selection}
+
+\subsection{Validation-Gated Promotion}
+The deployed pipeline already trains a candidate each night and promotes it only
+if it does not regress beyond a tolerance $\tau$ on a recent holdout, retaining
+the incumbent otherwise. Formally, with $e_{\mathrm{rec}}$ the recent-window
+error and $e^{\mathrm{inc}}_{\mathrm{rec}}$ the incumbent's,
+\begin{equation}
+\text{promote} \iff e_{\mathrm{rec}}(\text{cand}) \le (1+\tau)\,
+e^{\mathrm{inc}}_{\mathrm{rec}} , \qquad \tau = 0.05 .
+\label{eq:promote}
+\end{equation}
+This bounds, without eliminating, the risk of deploying a worse model.
+
+\subsection{From One Candidate to One Per Family}
+Sections~\ref{sec:results_seq} and~\ref{sec:repr} establish that no adaptation
+family dominates across regimes, and that the governing factor is not reliably
+predictable in advance. The rational response is not a better predictor of which
+family to use, but to stop predicting: the pipeline already contains a selection
+mechanism, and it can select among mechanisms rather than merely accept or
+reject one.
+
+Each cycle, $K$ candidates are trained, one per family
+$m \in \mathcal{M} = \{\text{naive},\ \text{OSR},\ \text{replay},\
+\text{replay}{+}\text{OSR}\}$, and evaluated on both the recent window and the
+retained reference window. The promoted model is
+\begin{equation}
+m^{\star} = \arg\min_{m \in \mathcal{M}}
+\Big[\, e_{\mathrm{rec}}(m) + \alpha\, e_{\mathcal{R}}(m) \,\Big]
+\quad \text{s.t. Eq.~\eqref{eq:promote}} ,
+\label{eq:selection}
+\end{equation}
+with $\alpha$ setting the operator's stability--plasticity preference. Setting
+$\alpha{=}0$ recovers the deployed behaviour; $\alpha$ large prioritises
+retention.
+
+The cost is linear in $K$ and small in absolute terms: models are compact, and
+the sequential study of Section~\ref{sec:results_seq} already executed $240$
+adaptation jobs on the same infrastructure.
+
+\subsection{The Mechanism Does Not Work}
+\label{sec:selection_fails}
+Evaluated against the fixed-family chains on the twelve-cycle stream, the rule
+of Eq.~\eqref{eq:selection} \emph{loses} to committing to a single family, at
+every value of $\alpha$ (Table~\ref{tab:selection}). The best selection variant
+reaches $-0.82$~kW mid-stream backward transfer against $-1.77$~kW for
+always-replay${+}$OSR. Setting $\alpha{=}0$, which recovers the deployed
+behaviour of selecting on recent-window error alone, is worse than every fixed
+family except naive fine-tuning.
+
+This is an oracle-flavoured result and should be read as such: the rule is
+evaluated with per-cycle metrics that a live system would have to estimate.
+A realisable version has strictly less information and cannot do better.
+
+An independent measurement on the transfer study agrees. Selecting per day
+among three adapted models by their realised effect on the site's controller,
+an oracle that knows the outcome in advance improves on the best fixed choice
+by $0.14\%$ over $35$ day--seed pairs; selecting by same-day forecast error
+gives $1193.8$ against $1181.4$ for the best fixed model, that is worse than
+committing. Two designs, two datasets, the same verdict: at this site there is
+no headroom for per-cycle selection among adaptation families, and the honest
+recommendation is to choose one family well rather than to arbitrate among them
+online.
+
+\begin{table}[t]
+\centering
+\caption{Selection versus commitment on the twelve-cycle stream. BWT$_{\rm mid}$
+in kW; negative is better. No value of $\alpha$ reaches the best fixed family.}
+\label{tab:selection}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+& BWT$_{\mathrm{mid}}$ & Plasticity \\
+\midrule
+Always replay${+}$OSR & $\mathbf{-1.77}$ & $13.04$ \\
+Always replay & $-1.39$ & $13.82$ \\
+Always naive & $+7.04$ & $8.54$ \\
+Always OSR & $+9.68$ & $9.37$ \\
+\midrule
+Selection, $\alpha{=}0$ & $+3.88$ & $10.83$ \\
+Selection, $\alpha{=}1$ & $-0.67$ & $11.29$ \\
+Selection, $\alpha{=}10^3$ & $-0.82$ & $12.59$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------------------------------------------------------------- VIII. MPC
+\section{MPC Integration and the Value of Forecasting}
+\label{sec:mpc}
+
+% Condense Paper 1 Sec. V; keep the convex formulation, add the value bound.
+
+The adapted forecasts drive a convex scheduler that shifts EV charging across
+two metering points under day-ahead prices, subject to per-site power and ramp
+bounds and a zero-sum constraint so that energy is displaced rather than
+created. Because the scheduler's objective is evaluated against the
+\emph{forecast}, comparing objective values across forecasters is not
+meaningful: an optimistic forecast lowers the planned cost without lowering the
+bill. Every figure below settles the plan against the demand and generation
+that actually arrived.
+
+\subsection{Accuracy Does Not Order Mechanisms the Way the Controller Does}
+\label{sec:inversion_decision}
+This is the paper's second independent finding, and it does not depend on the
+representation result.
+
+Over $35$ day--seed pairs, bounded replay attains the \emph{best} forecast error
+of the three adapted models ($15.7$~kW MAE) together with the \emph{worst}
+realised controller cost ($1196.8$); the output-sensitivity regulariser is the
+reverse ($18.9$~kW, best cost at $1181.4$); plain fine-tuning lies between on
+both. The ordering by forecast error is therefore not merely noisy with respect
+to the ordering by decision quality --- on this pair it is inverted.
+
+The mechanism is visible in Section~\ref{sec:gauge}: the fitted gauge differs
+across methods ($a$ from $1.257$ to $1.430$). A scheduler that places energy is
+sensitive to a systematic amplitude error in a way that a symmetric error
+metric is not, so a model can be closer in nRMSE and worse at the task the
+forecast exists to serve. This is the concrete reason the protocol of
+Section~\ref{sec:protocol} reports amplitude separately.
+
+\subsection{What the Deployed Controller Saves}
+Against an unmanaged site over $21$ days, the controller running on the
+deployed forecast saves $7.86$~EUR/day when its plan is settled against
+measurement under day-ahead prices (mean $115.5$, range $76$--$200$~EUR/MWh).
+Evaluated the way the deployment notebook reports it --- baseline and optimised
+cost both computed from the forecast --- the same runs give $9.55$~EUR/day. The
+$1.7$~EUR/day difference is one-directional: a forecast-against-forecast
+comparison always flatters the controller, because the forecast bias enters
+both terms of the subtraction.
+
+The gap is modest here at $6\%$, and it is modest for a reason worth stating:
+the bias moves both legs together. Where the two figures diverge sharply is in
+the price series. Under the synthetic profile used for illustration in the
+deployment notebook --- a flat $30$~EUR/MWh night against flat $220$~EUR/MWh
+peaks --- the same controller and the same forecasts yield $49.3$~EUR/day
+realised. The fivefold difference is attributable to the price spread alone.
+We report both because the size of a scheduling benefit is dominated by the
+assumed tariff, and reporting it without the tariff makes it uninterpretable.
+
+% ---------------------------------------------------------------- IX. SETUP
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Sequential Deployment Study}
+Twelve cycles walking from winter 2024 to winter 2025 in $30$-day steps, each
+using a $90$-day training window, chained cycle to cycle, five seeds, four
+strategies: $240$ adaptation jobs. Retention measured by Eq.~\eqref{eq:bwt} on a
+fixed early-winter reference window.
+
+\subsection{Cross-Site Transfer Study}
+Two real published targets. Ten seeds per condition, seed-matched Wilcoxon
+tests, Holm correction across the contrast family, paired $d_z$, and equivalence
+testing at margins pre-declared before the campaign.
+
+\subsection{Baselines}
+Static model; naive fine-tuning ($\ewclambda{=}0$); OSR; bounded experience
+replay ($B{=}2000$, reservoir sampling, chained); and naive/seasonal persistence.
+
+% ---------------------------------------------------------------- X. RESULTS
+\section{Results}
+\label{sec:results}
+
+\subsection{Sequential Retention}
+\label{sec:results_seq}
+
+\begin{table}[t]
+\centering
+\caption{Multi-cycle retention and plasticity (PV LSTM, mean$\pm$s.d.\ over five
+seeds). BWT in kW; positive $=$ forgetting.}
+\label{tab:multicycle}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Strategy} & \textbf{BWT}$_{\mathrm{mid}}$ & \textbf{BWT}$_{\mathrm{peak}}$
+& \textbf{Plasticity} \\
+\midrule
+Naive ($\ewclambda{=}0$) & $+7.04\pm7.18$ & $+13.07\pm8.52$ & $8.54$ \\
+OSR ($\ewclambda{=}10^3$) & $+9.68\pm6.37$ & $+15.63\pm4.66$ & $9.37$ \\
+Replay & $\mathbf{-1.39\pm7.70}$ & $\mathbf{6.83\pm6.94}$ & $13.82$ \\
+Replay${+}$OSR & $\mathbf{-1.77\pm6.64}$ & $\mathbf{5.67\pm5.41}$ & $13.04$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Bounded replay holds mid-stream backward transfer near zero while naive and OSR
+degrade substantially. The regulariser does not improve retention over naive
+fine-tuning; if anything it is marginally worse. Replay reduces mid-stream BWT
+by $11.07$~kW relative to OSR with the same sign on all five seeds (paired
+$t{=}6.88$, $p{=}0.0023$).
+
+A sweep over $\ewclambda \in \{0,10,10^2,10^3,10^4\}$ leaves mid-stream BWT
+essentially flat at $+8$ to $+12$~kW: the failure is a property of parameter
+anchoring in this regime, not of the operating point. A parameter-space
+diagnostic supports this reading --- cumulative weight drift
+$\lVert\params_k-\params_0\rVert$ grows at the same rate across all four
+strategies while retention diverges --- and a DER++-style variant lands between
+OSR and replay without separating from either at three seeds.
+
+Retention is bought with plasticity: replay's final recent-window MAE is
+$13.8$~kW against $8.5$~kW for naive.
+
+\subsection{Cross-Site Transfer and the Inversion}
+Reported in Section~\ref{sec:repr}, Table~\ref{tab:inversion}.
+
+\subsection{Comparison against Persistence}
+\label{sec:persistence}
+On the identical holdout, metric and horizon, naive persistence achieves
+$0.3245$ (EV) and $0.3500$ (PV). In the deployed representation the transferred
+models do not beat it ($0.5130$ on EV); under instance normalisation the same
+architecture beats it by $2.8\times$ ($0.1157$). On the PV task no
+representation examined beats it, the best (clear-sky index) reaching $0.4090$.
+We report this because it isolates the paper's central claim --- the accuracy
+variation attributable to representation exceeds any difference between
+continual-learning algorithms by an order of magnitude --- while bounding what
+the models achieve in absolute terms.
+
+\subsection{Champion--Challenger Selection}
+Reported in Section~\ref{sec:selection_fails}, Table~\ref{tab:selection}: the
+mechanism loses to commitment at every $\alpha$, and an independent oracle
+bound on the transfer study agrees.
+
+\subsection{Deployment Reliability and MPC Operation}
+% Keep Paper 1's promotion statistics and MPC operating results, condensed.
+
+% ---------------------------------------------------------------- XI. DISC
+\section{Discussion}
+\label{sec:discussion}
+
+Two mechanisms compete to explain retention. \emph{Coverage} holds that what
+protects a past regime is continued exposure to its input distribution;
+\emph{anchoring} holds that it is proximity in parameter space. The sequential
+study supports coverage: weight drift is equal across strategies while retention
+diverges, and adding the proximal penalty to replay changes neither retention
+nor the ranking. The transfer study under instance normalisation supports
+anchoring: there, the regularisation family retains best and replay does not.
+
+We do not think these are contradictory so much as regime-dependent, and we are
+explicit that we have not identified the governing variable. Source-model
+quality, directional gradient conflict, and selective freezing were each tested
+and rejected as explanations (Section~\ref{sec:repr}). The calibration account
+remains open pending M3.
+
+The practical implication we originally drew from this was that a deployed
+system should not commit to one family, but should train several and let its
+validation gate select among them. The measurements do not support that
+conclusion and we withdraw it. Selection loses to commitment on the sequential
+stream at every operating point, and an oracle with knowledge of the outcome
+recovers $0.14\%$ on the transfer study. Where the ordering is contingent but
+the spread is small relative to what an arbiter can capture, the correct
+response is to choose one family carefully and spend the engineering effort
+elsewhere.
+
+Where it should be spent, on this evidence, is on the objective. The orderings
+by forecast error and by realised decision cost disagree
+(Section~\ref{sec:inversion_decision}), which means the quantity the field
+optimises is not the quantity the deployment needs. That gap is larger than any
+difference we measured between adaptation mechanisms, and unlike the choice of
+mechanism it is actionable: the scheduler is convex and differentiable in the
+forecast, so training against its objective is available rather than
+hypothetical. We have not done it here, and we identify it as the direction
+this study's results point to.
+
+% ---------------------------------------------------------------- XII. LIMITS
+\section{Limitations}
+\label{sec:limits}
+
+\emph{Absolute accuracy.} In the deployed representation our models do not beat
+naive persistence at the one-step horizon, and on the PV task no representation
+examined does. The one-step $15$-minute horizon is where persistence is
+strongest; our contribution concerns adaptation dynamics rather than absolute
+accuracy, and we do not claim the latter.
+
+\emph{Feature construction, and how much it costs.} The rolling means used to
+build the experimental features are trailing and inclusive, so the feature
+vector for step $t$ contains $y_t$. The deployed service does not have this
+property --- its rolling window is truncated at the current index and is
+therefore causal --- so the experiments and the service were not computing the
+same features.
+
+We measured the consequence rather than leaving it open. Retraining with the
+rolling means shifted by one step, on three seeds, source holdout error rises
+from $0.627$ to $0.895$ and target zero-shot error from $0.993$ to $1.445$:
+removing the leak costs $43\%$ and $46\%$ respectively. Two things follow, and
+both are unfavourable. The absolute one-step accuracy reported throughout
+Sections~\ref{sec:repr} and~\ref{sec:persistence} is substantially inflated,
+and a causal model at $0.895$ does not approach naive persistence at $0.3245$
+on the source holdout. We therefore make no claim of absolute one-step accuracy
+anywhere in this paper.
+
+What the measurement does not tell us is whether the \emph{comparisons} move,
+since all mechanisms were trained under the same features and the leak is
+shared. \needexp{E7: re-run the retention and decision-space comparisons on the
+causal pipeline. Until that exists, the orderings reported here are established
+under a feature construction that the deployed service does not use, and that
+qualification belongs with every one of them.}
+
+\emph{Scope.} The sequential study covers seasonal shift at a single site with
+five seeds; the transfer study covers one domain pair per task. The inversion is
+established on one task and does not reproduce on the second.
+
+\emph{Prior publication.} The deployment architecture appeared in a preliminary
+conference version. Its conclusion that the regulariser does not aid retention
+is reproduced here and shown to be specific to the deployed representation.
+
+% ---------------------------------------------------------------- XIII. CONCL
+\section{Conclusion}
+\label{sec:conclusion}
+
+We reported a deployment study in which the retention metric that organises the
+continual-learning literature proved unreliable in two independent ways.
+
+A substantial part of what is measured as forgetting is output gauge rather
+than lost structure: one scalar pair fitted out of sample removes $28\%$ of the
+deployed model's error on its own source domain, and correcting for it reverses
+which of two mechanisms appears better. And retention measured in forecast
+error does not order mechanisms the way the site's controller does --- the best
+forecaster by error is the worst by realised decision cost.
+
+We drew from this a measurement protocol: report the pre-adaptation reference,
+separate amplitude from structure, and price the residual through the
+downstream decision rather than assuming it matters.
+
+We also report what did not work. The champion--challenger mechanism that
+motivated this study loses to committing to a single adaptation family at every
+operating point, and an oracle that selects daily with knowledge of the outcome
+improves on the best fixed choice by $0.14\%$. We take this as the useful
+negative finding: at this site the headroom is not in arbitrating among
+adaptation mechanisms, and effort spent building an online arbiter is effort
+misplaced. Whether that follows from the site's scale or generalises is exactly
+the question a second deployment would settle.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
