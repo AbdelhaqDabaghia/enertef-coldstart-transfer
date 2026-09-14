@@ -1418,6 +1418,19 @@ Bounded rehearsal & $\mathbf{0.9139 \pm 0.0150}$ & $\mathbf{0.8888}$ & $1.311$ \
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_retention.pdf}
+\caption{Retained-task error under both feature pipelines, ten seeds. Each
+line joins one seed's raw error (filled) to its gauge-corrected error
+(hollow); heavy bars are condition means. \emph{Left:} under leaky features
+the correction improves every condition and reverses the ordering of the
+first two. \emph{Right:} under causal features it moves almost nothing except
+for rehearsal, the two anchoring conditions coincide, and only rehearsal
+falls below naive persistence (dashed).}
+\label{fig:retention}
+\end{figure}
+
 The fitted gauge $a$ is informative in a way the error alone is not. It
 sits at $1.013$ for plain fine-tuning --- the identity, indicating a model
 whose output scale on the retained task is unchanged because it has
@@ -1457,6 +1470,20 @@ $34\%$ reduction, and it does so on \emph{every one} of the $35$ pairs
 ($p<10^{-5}$, $d_z=-2.31$). Carried through the controller, that advantage
 disappears: the realised objective moves $7.80$ in the opposite direction
 and the two are statistically indistinguishable ($p=0.645$).
+Fig.~\ref{fig:decoupling} shows the effect directly --- rehearsal's cloud
+sits to the left of the others on every pair, and at the same height.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_decoupling.pdf}
+\caption{Forecast accuracy against the decisions it drives, causal features.
+Each point is one (seed, day) pair; crosses mark condition means, and the
+marginal boxes summarise each axis. Bounded rehearsal is the more accurate
+forecaster on all $35$ pairs, yet the realised cost of the schedules built on
+it is indistinguishable from those built on the regulariser. Moving left does
+not move one down.}
+\label{fig:decoupling}
+\end{figure}
 
 We state the conclusion in the weaker of the two available forms. This is
 a decoupling rather than an inversion: we do not claim the more accurate
