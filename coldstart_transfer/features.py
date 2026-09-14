@@ -59,7 +59,8 @@ class ReconstructionError(RuntimeError):
 
 def engineer_features(df: pd.DataFrame,
                       timestamp_col: str = "timestamp",
-                      ev_col: str = "ev_kw") -> pd.DataFrame:
+                      ev_col: str = "ev_kw",
+                      causal: bool = False) -> pd.DataFrame:
     """
     Build the 21 SEQ_FEATURES from a raw frame containing `timestamp`, `ev_kw`
     and the six WEATHER_VARS. Lags/rolls are computed on the CONTINUOUS series
@@ -70,6 +71,28 @@ def engineer_features(df: pd.DataFrame,
     Returns a new DataFrame with `timestamp` + the 21 columns in canonical order.
     Does NOT scale. Head rows (< 672) carry warm-up-truncated lags (NaN->0),
     matching how a continuous build behaves at series start.
+
+    causal
+    ------
+    False (default) reproduces the historical convention, in which the trailing
+    rolling means INCLUDE the current step, so roll_*[t] contains ev[t].
+
+    That convention leaks the target, and it leaks twice over. Directly:
+    roll_1h_mean[t] averages four values, one of which is ev[t] itself. And
+    structurally, because windowing.make_windows sets
+    X_next[i] = next_feats[i+LOOKBACK] -- the exogenous vector AT THE PREDICTED
+    STEP -- while NEXT_EXO contains the three rolling means. The model is
+    therefore handed a quantity computed from the value it must predict.
+
+    True shifts the window by one step, roll_*[t] = mean(ev[t-w .. t-1]), which
+    is what the deployed service computes (its rolling window truncates at the
+    current index; see ev_features_builder.safe_rolling_mean). Under this
+    setting every feature available at time t depends only on y_(t-1), y_(t-2),
+    and earlier.
+
+    The default stays False deliberately: flipping it silently would change the
+    meaning of every result already committed under the old convention. Callers
+    opt in, and the two pipelines are versioned separately.
     """
     for c in [timestamp_col, ev_col] + WEATHER_VARS:
         if c not in df.columns:
@@ -88,10 +111,13 @@ def engineer_features(df: pd.DataFrame,
     for k, col in [(1, "lag_1"), (4, "lag_4"), (96, "lag_96"), (672, "lag_672")]:
         out[col] = ev.shift(k).fillna(0.0).values
 
-    # Rolling means (trailing, inclusive of current), min_periods=1.
-    out["roll_1h_mean"] = ev.rolling(4, min_periods=1).mean().values
-    out["roll_6h_mean"] = ev.rolling(24, min_periods=1).mean().values
-    out["roll_24h_mean"] = ev.rolling(96, min_periods=1).mean().values
+    # Rolling means, min_periods=1. Trailing and INCLUSIVE of the current step
+    # in the historical convention; shifted one step back when causal=True, so
+    # roll_*[t] is computed from ev[t-w .. t-1] only.
+    roll_src = ev.shift(1) if causal else ev
+    out["roll_1h_mean"] = roll_src.rolling(4, min_periods=1).mean().fillna(0.0).values
+    out["roll_6h_mean"] = roll_src.rolling(24, min_periods=1).mean().fillna(0.0).values
+    out["roll_24h_mean"] = roll_src.rolling(96, min_periods=1).mean().fillna(0.0).values
 
     # Weather passthrough (already in target units/order from the DB export).
     for c in WEATHER_VARS:

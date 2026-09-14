@@ -690,9 +690,10 @@ from $0.627$ to $0.895$ and target zero-shot error from $0.993$ to $1.445$:
 removing the leak costs $43\%$ and $46\%$ respectively. Two things follow, and
 both are unfavourable. The absolute one-step accuracy reported throughout
 Sections~\ref{sec:repr} and~\ref{sec:persistence} is substantially inflated,
-and a causal model at $0.895$ does not approach naive persistence at $0.3245$
-on the source holdout. We therefore make no claim of absolute one-step accuracy
-anywhere in this paper.
+and we therefore make no claim of absolute one-step accuracy anywhere in this
+paper. Persistence baselines must be compared within a holdout and not across
+them: the figures of Section~\ref{sec:persistence} and those of the source
+retention window are not commensurable.
 
 What the measurement does not tell us is whether the \emph{comparisons} move,
 since all mechanisms were trained under the same features and the leak is

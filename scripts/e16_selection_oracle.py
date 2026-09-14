@@ -46,6 +46,12 @@ PROD = "Data/models/ev_cnn_lstm_20260718.keras"
 SITE = "Data/ECC_master_PV_EMOB1_EMOB2_15min.csv"
 OUT = os.environ.get("OUT", "Data/results/e16_selection_oracle.csv")
 
+# E7: both feature pipelines are runnable without editing this file.
+# Default = the historical convention (rolling means include y_t);
+# set LUX_CSV / UK_CSV to the *_causal.csv files for the causal pipeline.
+LUX_CSV = os.environ.get("LUX_CSV", "Data/lux_source_features.csv")
+UK_CSV = os.environ.get("UK_CSV", "Data/uk_ev_features_full.csv")
+
 N_DAYS = int(os.environ.get("N_DAYS", "30"))
 HOLD = int(os.environ.get("HOLD", "14"))
 RET_DAYS = int(os.environ.get("RET_DAYS", "7"))
@@ -88,12 +94,12 @@ def day_objective(pred, ev_real, pv_real):
 
 def main():
     scalers = joblib.load("Data/models/ev_scalers.joblib")
-    sdf = pd.read_csv("Data/lux_source_features.csv")
+    sdf = pd.read_csv(LUX_CSV)
     tail = (POOL_DAYS + RET_DAYS) * 96 + LOOKBACK
     a_, b_, c_, d_ = make_windows(sdf.iloc[-tail:].reset_index(drop=True), scalers)
     source_pool, source_holdout = split_holdout(a_, b_, c_, d_, holdout_days=RET_DAYS)
 
-    tdf = pd.read_csv("Data/uk_ev_features_full.csv")
+    tdf = pd.read_csv(UK_CSV)
     tXs, tXn, ty, tts = make_windows(tdf, scalers)
     target_train, target_holdout = split_holdout(tXs, tXn, ty, tts, holdout_days=HOLD)
 
