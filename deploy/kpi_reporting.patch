@@ -1,0 +1,116 @@
+# =============================================================================
+# kpi_reporting.patch -- corrections to the Service-1 KPI path
+#
+# NOT APPLIED. realtime_runner.py exists in three copies and I do not know
+# which is deployed:
+#
+#   svc1-runner/realtime_runner.py                 35104 B  22 Jul   <- newest
+#   enertef-svc1-clean/realtime_runner.py          33453 B   2 Jul
+#   enertef-svc1-source/task/realtime_runner.py    33453 B   2 Jul   (identical)
+#
+# The two 2 July copies carry an extra defect the newest has already fixed:
+#
+#     main_verdict = 'PASS' if result.get('export_reduction_pct', 0) >= 5 ...
+#     kpi_rows.append((1, 'realtime', now, 'cost_reduction_pct',
+#                      float(result['reduction_pct']), 5.0, main_verdict, ...))
+#
+# i.e. the row named cost_reduction_pct took its verdict from a different
+# metric, so the cost KPI could report PASS because export reduction passed.
+# If either 2 July copy is the deployed one, fix that first.
+#
+# The hunks below target the 22 July copy.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. One row, one meaning.
+#
+# The row reports a percentage, its threshold column says 5.0, and the verdict
+# is decided by 5.0 EUR. Three different quantities wearing the same number. A
+# dashboard rendering value=6.0 / threshold=5.0 / PASS looks coherent and is
+# not. contextual.services.pass_threshold for service-1 says 20 and nothing
+# reads it.
+#
+# Split them: the percentage KPI carries the percentage threshold, and the
+# absolute-savings rule -- whose motivation in the existing comment is sound,
+# a ratio is unstable when the baseline is near zero -- becomes its own row.
+# -----------------------------------------------------------------------------
+--- a/realtime_runner.py
++++ b/realtime_runner.py
+@@ -664,8 +664,26 @@
+     MIN_SAVINGS_EUR_FOR_PASS = 5.0
+-    main_verdict = 'PASS' if result.get('savings_eur', 0) >= MIN_SAVINGS_EUR_FOR_PASS else 'FAIL'
++    # Single source of truth: contextual.services.pass_threshold for service-1.
++    COST_REDUCTION_THRESHOLD_PCT = 20.0
++    savings_eur = float(result.get('savings_eur', 0) or 0.0)
+     notes_main = (
+         f"NTUA-fidèle: cost {result['cost_optimised']:.2f}€ vs baseline {result['cost_baseline']:.2f}€, "
+-        f"savings {result.get('savings_eur', 0):.2f}€"
++        f"savings {savings_eur:.2f}€. PLANNED: both cost figures derive from "
++        f"the forecast, not from measurement. See cost_reduction_pct_realised."
+     )
+     cost_reduction_value = float(result['reduction_pct']) if result['reduction_pct'] is not None else 0.0
+-    kpi_rows.append((1, 'realtime', now, 'cost_reduction_pct',
+-                     cost_reduction_value, 5.0, main_verdict, notes_main))
++    # The percentage KPI, judged against the percentage threshold.
++    kpi_rows.append((1, 'realtime', now, 'cost_reduction_pct_planned',
++                     cost_reduction_value, COST_REDUCTION_THRESHOLD_PCT,
++                     'PASS' if cost_reduction_value >= COST_REDUCTION_THRESHOLD_PCT
++                     else 'FAIL', notes_main))
++    # The absolute-savings rule, as its own KPI with its own units. Keeping it
++    # is right -- a ratio is meaningless when the baseline cost is near zero --
++    # but it is a different statement and belongs in a different row.
++    kpi_rows.append((1, 'realtime', now, 'savings_eur_planned',
++                     savings_eur, MIN_SAVINGS_EUR_FOR_PASS,
++                     'PASS' if savings_eur >= MIN_SAVINGS_EUR_FOR_PASS else 'FAIL',
++                     notes_main))
++    main_verdict = ('PASS' if savings_eur >= MIN_SAVINGS_EUR_FOR_PASS else 'FAIL')
+
+
+# -----------------------------------------------------------------------------
+# 2. Label the setpoints for what they are.
+#
+# result['u'] is u1_opt + u2_opt, the EMOB1+EMOB2 total, but every row is
+# written with asset_id='EMOB1'. Settlement wants the total so this does not
+# block scripts/settle_kpis.py, but anything reading per-asset setpoints gets
+# EMOB2's deviation attributed to EMOB1.
+#
+# Writing the two series separately is the real fix; result already carries
+# 'u1' and 'u2'. If that is too large a change for now, at least stop calling
+# the total EMOB1.
+# -----------------------------------------------------------------------------
+@@ -640,12 +640,20 @@
+     setpoint_rows = []
+-    for i, u_val in enumerate(result['u']):
+-        target_time = now + timedelta(minutes=15 * i)
+-        setpoint_rows.append((
+-            1, now, target_time, 'EMOB1', float(u_val), 'P_setpoint', 'pending',
+-        ))
++    for asset, series in (('EMOB1', result['u1']), ('EMOB2', result['u2'])):
++        for i, u_val in enumerate(series):
++            target_time = now + timedelta(minutes=15 * i)
++            setpoint_rows.append((
++                1, now, target_time, asset, float(u_val),
++                'P_setpoint', 'pending',
++            ))
+
+
+# =============================================================================
+# 3. NOT PATCHED HERE: the planned/realised gap itself.
+#
+# cost_base is computed from ev_total_base (the forecast) and cost_opt from the
+# planned profile, so the reported reduction never meets measurement. On 21 days
+# this moves the figure from 11.5 % to 6.0 % (experiment e18).
+#
+# That is not fixed inside realtime_runner, because at plan time the realised
+# series does not exist yet. It is fixed by running scripts/settle_kpis.py at
+# J+1, which re-applies the issued setpoints to the demand and generation that
+# arrived and writes cost_reduction_pct_realised alongside. The renaming in
+# hunk 1 exists so the two rows read as a pair.
+#
+# Deployment order that keeps the dashboard coherent:
+#   1. apply hunk 1, so the planned row is named _planned
+#   2. schedule settle_kpis.py daily, inside the VPC, after the J-1 ingest
+#   3. point /kpi-summary at _realised for the headline, keeping _planned
+#      visible -- the gap between them is information, not noise
+# =============================================================================
