@@ -100,16 +100,25 @@ def engineer_features(df: pd.DataFrame,
     whose forecast slots are still zero. The service therefore divides by w
     while summing only w-1 real values:
 
-        train :  mean(y[t-3], y[t-2], y[t-1], y[t])
-        causal:  mean(y[t-3], y[t-2], y[t-1])
-        serve :  ( y[t-3] + y[t-2] + y[t-1] + 0 ) / 4
+        train (w=4):  mean(y[t-3], y[t-2], y[t-1], y[t])
+        causal(w=4):  mean(y[t-4], y[t-3], y[t-2], y[t-1])
+        serve (w=4):  ( y[t-3] + y[t-2] + y[t-1] + 0 ) / 4
 
-    so the served rolling mean is (w-1)/w of the causal one: about 25 % low on
-    the 1 h window, 4 % on 6 h, 1 % on 24 h. The model was fitted expecting the
-    term that contains y_t and is served one that is systematically deflated.
-    Since that feature correlates strongly with the target, the model
-    under-predicts -- which is the direction and rough size of the deployed
-    model's measured bias.
+    so serve divides w-1 real values by w. Relative to causal it is
+
+        serve = causal - y[t-w] / w
+
+    -- a deficit of roughly one term in w, so about 25 % on the 1 h window,
+    4 % on 6 h and 1 % on 24 h. The model was fitted expecting the term that
+    contains y_t and is served a sum that is systematically deflated. Since
+    that feature correlates strongly with the target, the model under-predicts.
+
+    NOTE. There is no serving-side-only change that reproduces `train`, because
+    train uses y_t and serving cannot. Dividing by the count of known values
+    (w-1 instead of w) fixes the arithmetic but yields a (w-1)-point causal
+    mean, which is a third convention again. Closing the gap honestly requires
+    defining one causal convention -- `causal` here -- implementing it in both
+    places, and retraining.
 
     The default stays "train" deliberately: flipping it silently would change
     the meaning of every result already committed under the old convention.
