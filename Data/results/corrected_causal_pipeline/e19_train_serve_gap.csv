@@ -1,0 +1,4 @@
+mode,nrmse,nrmse_gauged,gauge_a,corr,bias_kw,pred_mean_kw,true_mean_kw,persistence
+train,0.5476,0.3983,1.3864,0.9583,-15.16,41.76,56.92,0.9972
+causal,1.2542,1.2584,1.1392,0.4584,-17.96,38.95,56.92,0.9972
+serve,1.389,1.0163,3.5746,0.6664,-42.4,14.52,56.92,0.9972

@@ -60,7 +60,8 @@ class ReconstructionError(RuntimeError):
 def engineer_features(df: pd.DataFrame,
                       timestamp_col: str = "timestamp",
                       ev_col: str = "ev_kw",
-                      causal: bool = False) -> pd.DataFrame:
+                      causal: bool = False,
+                      mode: str | None = None) -> pd.DataFrame:
     """
     Build the 21 SEQ_FEATURES from a raw frame containing `timestamp`, `ev_kw`
     and the six WEATHER_VARS. Lags/rolls are computed on the CONTINUOUS series
@@ -84,16 +85,40 @@ def engineer_features(df: pd.DataFrame,
     STEP -- while NEXT_EXO contains the three rolling means. The model is
     therefore handed a quantity computed from the value it must predict.
 
-    True shifts the window by one step, roll_*[t] = mean(ev[t-w .. t-1]), which
-    is what the deployed service computes (its rolling window truncates at the
-    current index; see ev_features_builder.safe_rolling_mean). Under this
-    setting every feature available at time t depends only on y_(t-1), y_(t-2),
-    and earlier.
+    mode
+    ----
+    "train"  (default, == causal=False) the historical convention:
+             roll_*[t] = mean(ev[t-w+1 .. t]), which contains y_t.
+    "causal" (== causal=True) roll_*[t] = mean(ev[t-w .. t-1]): every feature
+             available at t depends only on y_(t-1) and earlier.
+    "serve"  what the DEPLOYED service actually computes. Not the same as
+             either of the above, and this is the important one.
 
-    The default stays False deliberately: flipping it silently would change the
-    meaning of every result already committed under the old convention. Callers
-    opt in, and the two pipelines are versioned separately.
+    On "serve". ev_features_builder.compute_lag_features takes the window
+    [idx-w+1, idx+1) -- inclusive of idx -- and realtime_runner calls it via
+    build_ev_next_input BEFORE the step is predicted, on an ev_series_full
+    whose forecast slots are still zero. The service therefore divides by w
+    while summing only w-1 real values:
+
+        train :  mean(y[t-3], y[t-2], y[t-1], y[t])
+        causal:  mean(y[t-3], y[t-2], y[t-1])
+        serve :  ( y[t-3] + y[t-2] + y[t-1] + 0 ) / 4
+
+    so the served rolling mean is (w-1)/w of the causal one: about 25 % low on
+    the 1 h window, 4 % on 6 h, 1 % on 24 h. The model was fitted expecting the
+    term that contains y_t and is served one that is systematically deflated.
+    Since that feature correlates strongly with the target, the model
+    under-predicts -- which is the direction and rough size of the deployed
+    model's measured bias.
+
+    The default stays "train" deliberately: flipping it silently would change
+    the meaning of every result already committed under the old convention.
+    Callers opt in, and the pipelines are versioned separately.
     """
+    if mode is None:
+        mode = "causal" if causal else "train"
+    if mode not in ("train", "causal", "serve"):
+        raise ReconstructionError("mode must be train|causal|serve, got %r" % mode)
     for c in [timestamp_col, ev_col] + WEATHER_VARS:
         if c not in df.columns:
             raise ReconstructionError(f"raw frame missing required column: {c!r}")
@@ -111,13 +136,18 @@ def engineer_features(df: pd.DataFrame,
     for k, col in [(1, "lag_1"), (4, "lag_4"), (96, "lag_96"), (672, "lag_672")]:
         out[col] = ev.shift(k).fillna(0.0).values
 
-    # Rolling means, min_periods=1. Trailing and INCLUSIVE of the current step
-    # in the historical convention; shifted one step back when causal=True, so
-    # roll_*[t] is computed from ev[t-w .. t-1] only.
-    roll_src = ev.shift(1) if causal else ev
-    out["roll_1h_mean"] = roll_src.rolling(4, min_periods=1).mean().fillna(0.0).values
-    out["roll_6h_mean"] = roll_src.rolling(24, min_periods=1).mean().fillna(0.0).values
-    out["roll_24h_mean"] = roll_src.rolling(96, min_periods=1).mean().fillna(0.0).values
+    # Rolling means. See the `mode` docstring: "train" includes y_t, "causal"
+    # shifts the window one step back, "serve" sums the w-1 past values but
+    # still divides by w -- the deployed arithmetic.
+    for w, col in [(4, "roll_1h_mean"), (24, "roll_6h_mean"),
+                   (96, "roll_24h_mean")]:
+        if mode == "train":
+            v = ev.rolling(w, min_periods=1).mean()
+        elif mode == "causal":
+            v = ev.shift(1).rolling(w, min_periods=1).mean()
+        else:                                     # "serve"
+            v = ev.shift(1).rolling(w - 1, min_periods=1).sum() / float(w)
+        out[col] = v.fillna(0.0).values
 
     # Weather passthrough (already in target units/order from the DB export).
     for c in WEATHER_VARS:
