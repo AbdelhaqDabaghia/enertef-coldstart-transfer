@@ -110,9 +110,29 @@ def decision_block(lines, tag, df):
     best_obj = o.mean().idxmin()
     lines.append("\n- best by MAE: **%s** | best by controller cost: **%s**"
                  % (best_mae, best_obj))
-    lines.append("- **C4 inversion: %s**"
-                 % ("HOLDS -- the two disagree" if best_mae != best_obj
-                    else "FAILS -- the same model wins both"))
+
+    # Comparing means is not enough: an ordering that differs on means but not
+    # significantly is a DECOUPLING, not an inversion, and the two support
+    # different sentences in the paper. Test the pair that carries the claim.
+    if best_mae != best_obj:
+        dm = m[best_mae] - m[best_obj]
+        do = o[best_mae] - o[best_obj]
+        _, p_mae = wilcoxon(m[best_mae], m[best_obj])
+        _, p_obj = wilcoxon(o[best_mae], o[best_obj])
+        lines.append("- %s beats %s on MAE by %.2f kW (p=%.5f, %d/%d pairs)"
+                     % (best_mae, best_obj, -dm.mean(), p_mae,
+                        int((dm < 0).sum()), len(dm)))
+        lines.append("- on realised objective that becomes %+.2f (p=%.5f)"
+                     % (do.mean(), p_obj))
+        if p_obj < 0.05 and do.mean() > 0:
+            lines.append("- **C4: INVERSION -- the accuracy leader is "
+                         "significantly WORSE on decisions**")
+        else:
+            lines.append("- **C4: DECOUPLING -- a significant, unanimous "
+                         "accuracy advantage yields no detectable decision "
+                         "advantage (p=%.2f)**" % p_obj)
+    else:
+        lines.append("- **C4: the same model wins both axes**")
     orc = o.min(axis=1).mean()
     bf = o[best_obj].mean()
     lines.append("- C5 oracle ceiling over best fixed: %+.2f (%+.2f %%), n=%d"
@@ -130,7 +150,10 @@ def main():
     ref = _load(CAUSAL, "e7_reference_check.csv")
     if ref is not None:
         lines.append("## The un-adapted production model\n")
-        lines.append(ref.to_markdown(index=False))
+        lines.append("| " + " | ".join(ref.columns) + " |")
+        lines.append("|" + "---|" * len(ref.columns))
+        for _, r in ref.iterrows():
+            lines.append("| " + " | ".join(str(v) for v in r.values) + " |")
         lines.append("")
 
     for tag, d in [("LEAKY (archived)", LEAKY), ("CAUSAL (corrected)", CAUSAL)]:
