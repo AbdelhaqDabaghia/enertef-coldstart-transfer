@@ -58,7 +58,11 @@ Artificial-intelligence models are increasingly deployed at commercial energy si
 
 This paper presents an autonomous continual-learning architecture deployed as an operational prototype at a commercial energy site in Luxembourg, integrating AI forecasting, cloud-based model adaptation, and real-time operational control. The framework consists of: (i) two forecasting models---a PV LSTM and an EV CNN-LSTM---adapted nightly through an EWC-inspired proximal regulariser that uses a Memory Aware Synapses (MAS)-style output-sensitivity importance estimator; (ii) a tolerance-gated promotion mechanism with fail-safe retention that deploys a candidate only if it does not regress beyond a 5\% margin on a recent holdout, bounding---but not eliminating---the risk of deploying a worse model; and (iii) a direct coupling between the continually updated forecasts and a convex Model Predictive Control (MPC) scheduler that optimises electric-vehicle charging decisions under real ENTSO-E day-ahead electricity prices.
 
-Beyond the algorithmic application of continual learning, this work demonstrates the complete pathway from initial model training and cloud deployment to integration with real-time control infrastructure. We present the EWC-inspired objective together with its Bayesian motivation, while making explicit that the deployed importance estimator is a MAS-style output-sensitivity proxy rather than an empirical Fisher estimator, and present the corresponding convex MPC formulation. Using real Leneda smart-meter data from Luxembourg, a representative nightly cycle reduces PV forecast MAE by 21.83\% and EV demand forecast MAE by 67.87\% relative to the static production models, driving a convex MPC loop against real day-ahead prices. A controlled multi-seed analysis further shows that part of the apparent advantage over na\"ive fine-tuning falls within random-initialisation variance, underlining the need for replicated, multi-cycle evaluation. The paper also reports practical engineering challenges---framework incompatibilities, model-conversion (ONNX export) failures, data-quality degradation, and data-provenance verification---that are largely absent from the continual-learning literature. The primary contribution is therefore an operational architecture and real-site case study for safely integrating continual learning into an autonomous forecasting and MPC-based energy-management pipeline, rather than a novel CL algorithm.
+Beyond the algorithmic application of continual learning, this work demonstrates the complete pathway from initial model training and cloud deployment to integration with real-time control infrastructure. We present the EWC-inspired objective together with its Bayesian motivation, while making explicit that the deployed importance estimator is a MAS-style output-sensitivity proxy rather than an empirical Fisher estimator, and present the corresponding convex MPC formulation.
+
+Operating the resulting system surfaced three findings that qualify how such deployments should be evaluated, and we report them in preference to headline accuracy figures. \emph{First}, the endogenous features used for training leaked the prediction target through trailing rolling means, while the deployed service computed the same features causally. Correcting this and re-scoring the unchanged production weights raises retained-task error from $0.548$ to $1.254$~nRMSE and drops correlation with the ground truth from $0.958$ to $0.458$: accuracy figures obtained under such a pipeline, including our own, are substantially inflated, and an account of the residual error as a mis-scaled but preserved signal does not survive correction. \emph{Second}, on causal features the adaptation mechanisms separate sharply --- bounded rehearsal reduces retained-task error by $0.346$~nRMSE relative to na\"ive fine-tuning, unanimously over ten seeds ($d_z=-17.57$), and is the only condition that beats naive persistence, while the proximal regulariser is statistically indistinguishable from fine-tuning ($p=0.70$). \emph{Third}, that accuracy advantage does not reach the decisions it exists to support: rehearsal forecasts $34\%$ better on every one of $35$ day--seed pairs, yet the realised cost of the schedules built on it is indistinguishable from those built on the regulariser ($p=0.645$). We further find that an oracle selecting between mechanisms daily, with knowledge of the outcome, improves on the best fixed choice by $0.41\%$, which bounds what any online arbiter could recover.
+
+The paper also reports practical engineering challenges---framework incompatibilities, model-conversion (ONNX export) failures, data-quality degradation, and data-provenance verification---that are largely absent from the continual-learning literature. The primary contribution is therefore an operational architecture and real-site case study for safely integrating continual learning into an autonomous forecasting and MPC-based energy-management pipeline, together with the evaluation practices that deployment showed to be necessary, rather than a novel CL algorithm.
 
 \end{abstract}
 
@@ -1357,7 +1361,122 @@ acquired behaviour at negligible cost to current-window accuracy rather
 than to maximise single-cycle error reduction. We report this modest
 effect transparently: on a single cycle the regulariser is not the main
 driver of accuracy, and its value should be assessed over repeated
-adaptation cycles, which we identify as future work.
+adaptation cycles.
+
+We have since carried out that assessment, and it does not support the
+reading above. Section~\ref{sec:results_causal} reports a transfer study
+on causal features in which the regulariser is statistically
+indistinguishable from plain fine-tuning on retained-task error
+($+0.0008$~nRMSE, $p=0.70$, ten seeds), while bounded rehearsal is better
+than both by a margin an order of magnitude larger. The hypothesis that
+the regulariser's role is to protect previously acquired behaviour is
+therefore not borne out: on this task it protects no more than doing
+nothing in particular does.
+
+% ------------------------------------------------------------------
+\subsection{Adaptation Mechanisms under Causal Features}
+\label{sec:results_causal}
+
+Section~\ref{sec:limitations_causal} establishes that the endogenous
+features used above leak the target, and that the deployed service does
+not share that convention. This subsection reports the comparative
+experiments re-run on causal features, in which every input available at
+time $t$ depends only on $y_{t-1}$ and earlier. Absolute errors are
+necessarily higher --- the leak was supplying part of the answer --- so we
+draw no absolute conclusions here; the question is which \emph{orderings}
+survive.
+
+\subsubsection{Retention}
+Ten seeds, identical protocol, frozen production scalers throughout
+(Table~\ref{tab:causal_retention}). Bounded rehearsal reduces retained-task
+error by $0.346$~nRMSE relative to plain fine-tuning, unanimously across
+seeds, with a paired effect size of $d_z = -17.57$; under the leaky
+features the same contrast gave $d_z=-2.68$. The output-sensitivity
+regulariser, by contrast, is indistinguishable from plain fine-tuning
+($+0.0008$, $p=0.70$).
+
+Rehearsal is also the only condition that beats naive persistence on this
+window ($0.914$ against $0.997$); neither of the other two does. We
+therefore report that on causal features, at this site, only rehearsal
+produces a model worth deploying.
+
+\begin{table}[t]
+\centering
+\caption{Retained-task error under causal features (nRMSE, mean $\pm$ s.d.\
+over ten seeds; lower is better). $a$ is the single-parameter output gauge
+fitted out of sample. Naive persistence scores $0.997$ on the same window.}
+\label{tab:causal_retention}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Strategy} & \textbf{Raw} & \textbf{Gauge-corrected} & $\bm{a}$ \\
+\midrule
+No adaptation & $1.254$ & $1.258$ & $1.139$ \\
+Na\"ive fine-tune & $1.2595 \pm 0.0070$ & $1.2595$ & $1.013$ \\
+Output-sensitivity & $1.2604 \pm 0.0025$ & $1.2623$ & $1.186$ \\
+Bounded rehearsal & $\mathbf{0.9139 \pm 0.0150}$ & $\mathbf{0.8888}$ & $1.311$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The fitted gauge $a$ is informative in a way the error alone is not. It
+sits at $1.013$ for plain fine-tuning --- the identity, indicating a model
+whose output scale on the retained task is unchanged because it has
+learned nothing about it --- and rises monotonically with how much of the
+retained distribution the mechanism has actually revisited. Correcting for
+it lowers the error only for rehearsal. We note explicitly that under the
+leaky features this correction lowered the error for \emph{every}
+condition and reversed the ordering of two of them; that reversal does not
+survive, and we report the gauge here as a diagnostic rather than as a
+correction.
+
+\subsubsection{Downstream decisions}
+Feeding each adapted forecaster to the scheduler of
+Section~\ref{sec:mpc} and settling every plan against measurement gives
+the comparison in Table~\ref{tab:causal_decision}, over $35$ day--seed
+pairs.
+
+\begin{table}[t]
+\centering
+\caption{Forecast accuracy against realised control cost, causal features,
+$35$ day--seed pairs. The accuracy ordering and the decision ordering do
+not agree.}
+\label{tab:causal_decision}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Strategy} & \textbf{MAE (kW)} & \textbf{Realised objective} \\
+\midrule
+Na\"ive fine-tune & $43.64$ & $1206.2$ \\
+Output-sensitivity & $43.20$ & $\mathbf{1186.6}$ \\
+Bounded rehearsal & $\mathbf{32.28}$ & $1194.4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Rehearsal forecasts better than the regulariser by $10.91$~kW MAE, a
+$34\%$ reduction, and it does so on \emph{every one} of the $35$ pairs
+($p<10^{-5}$, $d_z=-2.31$). Carried through the controller, that advantage
+disappears: the realised objective moves $7.80$ in the opposite direction
+and the two are statistically indistinguishable ($p=0.645$).
+
+We state the conclusion in the weaker of the two available forms. This is
+a decoupling rather than an inversion: we do not claim the more accurate
+forecaster produces significantly worse decisions, only that a large,
+unanimous accuracy advantage produces no detectable decision advantage at
+all. That is the claim the data support, and it is sufficient for the
+argument --- a quantity that can improve by a third, without exception,
+while the decisions it drives do not measurably improve, is not serving as
+a proxy for decision quality.
+
+\subsubsection{Is there anything to arbitrate?}
+The natural response to two orderings that disagree is to select between
+mechanisms online. We measured the ceiling before building anything. An
+oracle that selects the best forecaster for each day \emph{after} seeing
+the outcome improves on the best fixed choice by $0.41\%$; selection by the
+previous day's error, which is realisable, does not improve on it at all.
+Since any deployable arbiter has strictly less information than the
+oracle, none can recover more than that margin. We report this as a
+negative result: at this site the headroom is not in arbitrating between
+adaptation mechanisms.
 
 \subsection{Sensitivity to Random Seeds}
 \label{sec:results_seeds}
@@ -1686,18 +1805,42 @@ pipeline for reliable autonomous model updates.
 On a representative adaptation cycle over real smart-meter
 data, adaptation reduced holdout MAE by 21.83\% for PV
 generation forecasting and by 67.87\% for EV demand
-forecasting, and a representative MPC cycle improved the
-horizon objective by 114.76~EUR relative to the baseline
-schedule. We report these as single-cycle, representative
+forecasting. We report these as single-cycle, representative
 results rather than statistically validated superiority:
 a controlled comparison indicates that most of the
-single-cycle gain stems from retraining on recent data, and
-run-to-run variability across seeds is substantial. The paper
-further discussed practical deployment considerations,
-including model export, validation, fail-safe retention, and
-data provenance, highlighting the engineering challenges
-associated with reliable continual learning in real-world
-cyber-physical energy systems.
+single-cycle gain stems from retraining on recent data,
+run-to-run variability across seeds is substantial, and
+--- as Section~\ref{sec:limitations_causal} establishes ---
+the feature pipeline that produced them leaked the prediction
+target. The paper further discussed practical deployment
+considerations, including model export, validation, fail-safe
+retention, and data provenance, highlighting the engineering
+challenges associated with reliable continual learning in
+real-world cyber-physical energy systems.
+
+Operating the system also produced three results that we regard
+as more durable than any accuracy figure, because each concerns
+how such systems should be measured rather than how well this one
+performs. Feature causality is not a detail: correcting a leak in
+the trailing rolling means, while leaving the model untouched,
+moves retained-task error by a factor of $2.3$ and collapses
+correlation with the ground truth from $0.958$ to $0.458$, and the
+deployed service had been computing those features differently
+from the training pipeline all along. On corrected features the
+adaptation mechanisms separate decisively, with bounded rehearsal
+the only condition that beats naive persistence and the proximal
+regulariser indistinguishable from plain fine-tuning. And a
+forecast-accuracy advantage of $34\%$, unanimous across every
+evaluated pair, produced no measurable improvement in the
+schedules it drove --- which is to say that the quantity the
+continual-learning literature optimises was, in this deployment,
+not a proxy for the quantity the deployment exists to serve.
+
+We note that the second of these reverses a conclusion drawn in a
+preliminary version of this work, and that the first bears on every
+absolute accuracy figure we have published. We report them because
+a deployment study that only reports what worked is of limited use
+to anyone attempting the same thing.
 
 The framework's principal contribution is thus the operational
 architecture that makes unsupervised nightly adaptation safe and
