@@ -58,7 +58,10 @@ from coldstart_transfer.model import build_ev_model, compile_ev_model, \
 LUX = "Data/lux_source_features.csv"
 PROD = "Data/models/ev_cnn_lstm_20260718.keras"
 OUTDIR = "Data/models"
-RESULTS = "Data/results/corrected_causal_pipeline/retrain_causal.csv"
+# Overridable, because a follow-up single-seed run would otherwise overwrite a
+# committed multi-seed campaign with one row.
+RESULTS = os.environ.get(
+    "RESULTS", "Data/results/corrected_causal_pipeline/retrain_causal.csv")
 
 for _g in tf.config.list_physical_devices("GPU"):
     try:
