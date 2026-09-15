@@ -1,5 +1,11 @@
 # Cold-Start Continual-Learning Transfer for EV & PV Forecasting
 
+> **Start with [STATE.md](STATE.md).** It records where the project actually
+> stands: what is established, what was concluded and later found wrong, what is
+> deployed versus written-but-unapplied, and what is open. The sections below
+> describe the original paper pipeline and are no longer the whole story — the
+> project now also carries a deployment audit of the live Service-1 system.
+
 Reproducible pipeline for the paper *"When Simple Beats Sophisticated: A
 Cold-Start Continual-Learning Transfer Protocol"* — two real cross-country
 transfers (EV demand: Luxembourg → UK Electric Nation; PV generation:

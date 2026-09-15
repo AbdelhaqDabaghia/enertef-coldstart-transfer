@@ -1,0 +1,163 @@
+# Where this project stands
+
+**Read this first.** It is the fastest way to resume work on another machine or
+in a new session. The commit log carries the reasoning; this file carries the
+conclusions.
+
+Last updated: 2026-09-15.
+
+---
+
+## What this repository is now
+
+It started as the reproducible pipeline for a continual-learning transfer paper.
+It is now two things:
+
+1. **The paper** (`paper/v4/main.tex`) — a deployment study of continual
+   learning at a Luxembourg commercial energy site.
+2. **A deployment audit** (`deploy/`, `scripts/e19`–`e21`, `tests/`) — the
+   defects that audit found in the live Service-1 system, and the fixes.
+
+The second grew out of the first. Checking whether the paper's claims survived a
+correct feature pipeline exposed a production model that was serving roughly a
+quarter of real demand.
+
+---
+
+## Conclusions that are established
+
+Each is traceable to a CSV under `Data/results/`.
+
+### The paper
+
+- **The gauge-decomposition result does not survive causal features.** Under the
+  leaky pipeline, correcting output amplitude made the regulariser beat plain
+  fine-tuning (p = 0.002). Causally there is no difference (p = 0.43). This was
+  Contribution 1 and it is withdrawn. `e13`, n = 10.
+- **Rehearsal dominates causally.** Bounded replay beats fine-tuning by 0.346
+  nRMSE, unanimous over 10 seeds, d_z = −17.57, and is the only mechanism that
+  beats naive persistence. The regulariser is indistinguishable from plain
+  fine-tuning. This restores the direction of the conference paper, far more
+  decisively. `e13`.
+- **Forecast accuracy does not predict decision value.** Rehearsal forecasts
+  34 % better on 35/35 day-seed pairs, yet realised controller cost is
+  statistically unchanged (p = 0.645). This is a *decoupling*, not an
+  inversion — state the weaker claim. `e16`.
+- **No headroom for online arbitration.** An oracle selecting daily with
+  knowledge of the outcome beats the best fixed choice by 0.41 %. `e16`, `m1`.
+
+### The deployment
+
+- **Train/serve feature mismatch.** The model was fitted on rolling means
+  containing y_t and is served means computed a third way. Same weights, same
+  holdout: nRMSE 0.548 → 1.389, mean prediction 41.8 → 14.5 kW against a true
+  56.9. `e19`.
+- **A causal refit fixes most of it.** nRMSE 0.8495, bias −4.2 kW, mean
+  prediction 52.7 kW. Error down 39 %, bias down 90 %. `retrain_causal`.
+- **The KPI was never settled against measurement.** Planned 11.5 % vs realised
+  6.0 % over 21 days. `e18`.
+- **The deployed controller was running on a flat price.** The ENTSO-E token
+  had been returning 401 since 2026-07-02, so `contextual.prices` was stale and
+  `fetch_prices` fell back to a constant 100 EUR/MWh. At a flat price an
+  energy-conserving shift *cannot* change the reported bill, so savings were
+  exactly 0.00 EUR every cycle. **Fixed 2026-09-15.** `e21`.
+- **Telemetry is stale and the gap is fabricated.** Ingest runs once a day; the
+  lookback is anchored to `now`; every missing slot is filled with the median.
+  At 33 h staleness that was ~20 % of the window, including `lag_1`. Partly
+  mitigated 2026-09-15 by re-pinning the ingest to 00:05 UTC.
+
+---
+
+## Conclusions that were reached and later found wrong
+
+Recorded so nobody re-derives them. Each was stated confidently before being
+measured.
+
+| claim | reality |
+|---|---|
+| "The ENTSO-E API returns 404" | It returns **401**. The 404/timeout seen locally is the LIST firewall blocking `web-api.tp.entsoe.eu`: TCP connects, then zero bytes, while `github.com` returns 200 from the same shell. Local tests of that host are not diagnostic. |
+| "The MPC solver is failing" | SLSQP converges 7/7 days and matches cvxpy/OSQP to 0.002 EUR/day. The solver and formulation are sound. `e21`. |
+| "The production feature builder is causal" | It is not. `compute_lag_features` takes `[idx-w+1, idx+1)`, inclusive. The `if end > n` line is a bounds guard, not a causality shift. |
+| "serve = (w-1)/w × causal" | Wrong; the windows differ. The true relation is `serve = causal − y[t-w]/w`. |
+| "Replay's retention advantage is entirely gauge" | About 30 % was amplitude; 70 % is structural. |
+| "`mpc_runs` is the KPI table" | Nothing writes it. The live path is `historical.kpi_validation`. |
+| "1.74 EUR/day is the value of forecasting" | Wrong arm of the experiment, and superseded by `e18`. |
+
+**A standing caveat:** `e19`/`e20` evaluated against a contiguous CSV, so they
+exclude the stale-history padding defect. Production is worse than nRMSE 1.389
+by an unmeasured amount. Carry this wherever those figures go.
+
+---
+
+## What is deployed vs. what is written but not applied
+
+**Applied to production (2026-09-15):**
+- Valid ENTSO-E token in Secrets Manager `enertef/entsoe-token`.
+- CloudWatch alarms `enertef-price-fetcher-errors` and
+  `-not-running`, on SNS topic `enertef-alerts` (**no subscriber yet**).
+- `enertef-leneda-ingest-15min` re-pinned `rate(1 day)` → `cron(5 0 * * ? *)`.
+  Same cadence, same window, same request count.
+
+**Written, tested, NOT applied** (all in `deploy/`):
+- `kpi_reporting.patch` — splits the percentage and EUR verdicts, fixes the
+  setpoint asset label.
+- `price_fallback.patch` — records IDLE rather than FAIL when prices are flat.
+- `padding_counter.patch` — counts padded lookback slots.
+- `validation_v2.py` — promotion gate with an absolute persistence floor.
+- `feature_mode_guard.py` — refuses to serve a model against features it was
+  not fitted on.
+- `rehearsal_config.md` — switching to rehearsal is three env vars, no code.
+- `ingestion_cadence_proposal.md` — for the Liviu conversation.
+
+These are unapplied because `realtime_runner.py` and the feature builders exist
+in **three divergent copies** and nobody has established which is deployed.
+Resolving that is a prerequisite.
+
+**Deployment candidate:** `Data/models/ev_cnn_lstm_causal_full_warm_e20_s1.keras`
+with its paired `ev_scalers_causal_full_warm_e20_s1.joblib` — they must ship
+together, the frozen production scalers will not work.
+
+---
+
+## Open items
+
+1. **Run `scripts/settle_kpis.py` inside the VPC.** The single step that turns
+   the planned KPI into a defensible realised one. Everything else is ready.
+2. **Rotate the ENTSO-E token** — it passed through a chat transcript.
+3. **Subscribe an address** to `enertef-alerts`, or the alarms fire into nothing.
+4. **Decide which `realtime_runner.py` copy is deployed**, then apply the patches.
+5. **Item 6 of the plan** — a promotion gate on realised control cost. Blocked
+   deliberately: the threshold must come from the settled distribution, not be
+   invented.
+6. **Item 8** — prospective evaluation. `e20` is a *holdout*, not prospective:
+   the window is the last 7 days of the training series. Genuine prospective
+   evaluation needs data collected after the models were frozen, pulled from
+   the live database.
+7. **Paper**: `paper/v4/main.tex` has never been compiled (no LaTeX toolchain
+   here). Two citations, `li2024building` and `ng2024cost`, are unverified.
+   Section VIII-B states a conclusion of the conference version does not hold —
+   that needs a co-author conversation before submission.
+
+---
+
+## Resuming on another machine
+
+```bash
+git clone https://github.com/AbdelhaqDabaghia/enertef-coldstart-transfer.git
+cd enertef-coldstart-transfer
+cat STATE.md                 # this file
+git log --oneline | head -30 # the reasoning, newest first
+python tests/run_all.py      # 7 files, 51 tests, no GPU or DB needed
+```
+
+`tests/run_all.py` is the fastest way to confirm the environment is sane: every
+test corresponds to a defect that reached production, so a green run means the
+guards are intact.
+
+Commit messages are written to be read by someone who was not present. Where a
+conclusion was corrected, the commit that corrected it says so explicitly —
+`git log --grep="correct"` finds them.
+
+**What is NOT in this repository:** AWS credentials, the ENTSO-E token, database
+passwords, real POD identifiers, and the deployed `realtime_runner.py`. The
+repository is public.
