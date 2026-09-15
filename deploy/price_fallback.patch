@@ -1,0 +1,162 @@
+# =============================================================================
+# price_fallback.patch -- stop reporting FAIL for a controller that was never
+# given a usable input.
+#
+# NOT APPLIED. realtime_runner.py exists in three copies and I do not know
+# which is deployed:
+#   svc1-runner/realtime_runner.py                 22 Jul   <- newest
+#   enertef-svc1-clean/realtime_runner.py           2 Jul
+#   enertef-svc1-source/task/realtime_runner.py     2 Jul   (identical)
+#
+# THE PROBLEM, MEASURED
+#
+# fetch_prices() falls back to a constant when contextual.prices is empty:
+#
+#     if not rows:
+#         print('[PRICES] No prices available, using default 100 EUR/MWh')
+#         return np.full(HORIZON, 100.0, dtype=np.float32)
+#
+# At a FLAT price the reported 1:1 ledger is
+#
+#     cost = P * sum(imp - exp) * dt = P * sum(pgrid) * dt
+#          = P * (sum(ev) - sum(pv)) * dt
+#
+# and sum(ev) is invariant under the constraint sum(u1) = sum(u2) = 0. So an
+# energy-conserving shift CANNOT change the reported bill. Verified on seven
+# days of site data: with real day-ahead prices the saving is +2.96 to
+# +40.69 EUR/day; with a flat 100 EUR/MWh it is -0.000 EUR every single day,
+# which is exactly the "cost_baseline == cost_optimised to 1.59e-14" the
+# dashboard observed across ~12 consecutive cycles.
+#
+# The solver is NOT at fault. It still moves setpoints by 13-45 kW under a flat
+# price, chasing self-consumption through the weighted 8:2 objective. Only the
+# cost KPI is meaningless, because it measures a quantity that is provably
+# constant.
+#
+# So the current behaviour records FAIL -- "the controller was tested and
+# underperformed" -- when the truth is "the controller was never given an input
+# on which any saving was achievable". Those are different statements, and the
+# wrong one sent this investigation looking at the MPC solver for half a day.
+#
+# ROOT CAUSE (fixed separately, 2026-09-15): the ENTSO-E token in Secrets
+# Manager was returning 401 Unauthorized, unchanged since 2026-07-02, so
+# contextual.prices had been stale for ten weeks. A CloudWatch alarm now
+# watches both the Lambda's errors and its liveness. This patch is the
+# second half: make the consumer refuse to report a verdict it cannot support.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. Let fetch_prices say whether its output is real.
+# -----------------------------------------------------------------------------
+--- a/realtime_runner.py
++++ b/realtime_runner.py
+@@ -270,16 +270,26 @@
+ def fetch_prices(conn, hours=24):
+-    """Fetch next 24h ENTSO-E prices, interpolated to 96 points if needed."""
++    """Fetch next 24h ENTSO-E prices, interpolated to 96 points if needed.
++
++    Returns (prices, is_real). is_real is False when the constant fallback was
++    used, in which case no price-driven saving is achievable and the cost KPI
++    must not be scored -- see the note at the top of price_fallback.patch.
++    """
+     cur = conn.cursor()
+     ...
+     rows = cur.fetchall()
+     cur.close()
+
+     if not rows:
+-        print('[PRICES] No prices available, using default 100 EUR/MWh')
+-        return np.full(HORIZON, 100.0, dtype=np.float32)
++        print('[PRICES] WARNING: contextual.prices returned no rows for the '
++              'horizon. Falling back to a FLAT 100 EUR/MWh. At a flat price an '
++              'energy-conserving shift cannot change the reported bill, so the '
++              'cost KPI is not computable this cycle and will be recorded as '
++              'IDLE rather than FAIL. Check the enertef-price-fetcher Lambda '
++              'and the enertef/entsoe-token secret.')
++        return np.full(HORIZON, 100.0, dtype=np.float32), False
+
+     ...
+     prices_arr = np.array(prices[:HORIZON], dtype=np.float32)
+     print(f'[PRICES] {len(prices_arr)} pts (avg {np.mean(prices_arr):.2f} ...')
+-    return prices_arr
++    # A constant series from the DB is just as unusable as the fallback.
++    is_real = bool(np.ptp(prices_arr) > 1e-6)
++    if not is_real:
++        print('[PRICES] WARNING: prices are constant; the cost KPI is not '
++              'computable this cycle.')
++    return prices_arr, is_real
+
+
+# -----------------------------------------------------------------------------
+# 2. Update the single call site.
+# -----------------------------------------------------------------------------
+@@ -793,1 +793,1 @@
+-    prices = fetch_prices(conn)
++    prices, prices_are_real = fetch_prices(conn)
+
+
+# -----------------------------------------------------------------------------
+# 3. Record IDLE, not FAIL, when no saving was achievable.
+#
+# Applies on top of hunk 1 of kpi_reporting.patch, which splits the percentage
+# and absolute-EUR rules into separate rows. If that patch is not applied,
+# adapt the row names to the current single row.
+# -----------------------------------------------------------------------------
+@@ -664,12 +664,26 @@
+     MIN_SAVINGS_EUR_FOR_PASS = 5.0
+     COST_REDUCTION_THRESHOLD_PCT = 20.0
+     savings_eur = float(result.get('savings_eur', 0) or 0.0)
++
++    # A verdict requires an input on which a verdict is possible. Under a flat
++    # price the reported saving is mathematically pinned at zero whatever the
++    # controller does, so scoring it would assert something false about the
++    # controller. Record the measurement and withhold the verdict.
++    if not prices_are_real:
++        idle_note = ('NOT SCORED: prices were flat (fallback or constant), so '
++                     'an energy-conserving shift cannot change the reported '
++                     'bill and the saving is pinned at 0.00 EUR regardless of '
++                     'controller performance. This is a missing input, not a '
++                     'controller failure. Setpoints were still computed and '
++                     'applied.')
++        kpi_rows.append((1, 'realtime', now, 'cost_reduction_pct_planned',
++                         None, COST_REDUCTION_THRESHOLD_PCT, 'IDLE', idle_note))
++        kpi_rows.append((1, 'realtime', now, 'savings_eur_planned',
++                         None, MIN_SAVINGS_EUR_FOR_PASS, 'IDLE', idle_note))
++    else:
+         notes_main = (...)
+         cost_reduction_value = float(result['reduction_pct']) if ... else 0.0
+         kpi_rows.append((1, 'realtime', now, 'cost_reduction_pct_planned',
+                          cost_reduction_value, COST_REDUCTION_THRESHOLD_PCT,
+                          'PASS' if cost_reduction_value >= COST_REDUCTION_THRESHOLD_PCT
+                          else 'FAIL', notes_main))
+         kpi_rows.append((1, 'realtime', now, 'savings_eur_planned',
+                          savings_eur, MIN_SAVINGS_EUR_FOR_PASS,
+                          'PASS' if savings_eur >= MIN_SAVINGS_EUR_FOR_PASS
+                          else 'FAIL', notes_main))
+
+
+# =============================================================================
+# NOTES FOR WHOEVER APPLIES THIS
+#
+# * The other five NTUA KPIs stay scored. export_reduction_pct,
+#   peak_reduction_pct, pv_self_cons_improvement_kwh, constraint_violation_kw
+#   and energy_balance_mwh are all measured in kW or kWh and do NOT depend on
+#   the price series, so they remain meaningful under the fallback. Only the
+#   two price-denominated rows are withheld.
+#
+# * The controller should keep running. Under the weighted 8:2 objective it
+#   still improves self-consumption even at a flat price -- measured max|u| of
+#   13-45 kW -- so the setpoints are worth applying. It is the euro-denominated
+#   verdict that is unsupportable, not the control action.
+#
+# * The dashboard already renders 'IDLE' (src/lib/service1Logic.js kpiVerdict),
+#   so no frontend change is required for the verdict itself. A NULL
+#   measured_value will render as "no data"; if that reads badly, the dashboard
+#   session may prefer to show the note.
+#
+# * Do not be tempted to widen the threshold instead. Whether 20 % is the right
+#   target for a 200 kW shiftable load against a ~130 EUR/day bill is a
+#   consortium question, and a threshold changed to make a red card green would
+#   hide the same thing the fabricated KPIs hid.
+# =============================================================================

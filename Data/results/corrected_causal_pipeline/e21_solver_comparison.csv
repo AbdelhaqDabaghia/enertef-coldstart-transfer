@@ -1,0 +1,8 @@
+day,baseline_eur,baseline_obj,slsqp_converged,slsqp_iters,slsqp_max_abs_u,slsqp_obj,slsqp_eur,slsqp_saving_eur,osqp_status,osqp_max_abs_u,osqp_obj,osqp_eur,osqp_saving_eur,slsqp_msg
+0,131.159,1059.582,True,81,49.659061,981.321,118.99,12.1697,optimal,50.23,981.042,119.0,12.1594,Optimization terminated successfully
+1,94.612,894.646,True,72,40.479963,801.747,88.892,5.719,optimal,40.714,801.692,88.925,5.6866,Optimization terminated successfully
+2,83.21,683.827,True,83,24.951046,649.764,79.252,3.9584,optimal,25.085,649.69,79.217,3.9935,Optimization terminated successfully
+3,116.119,955.167,True,55,24.769451,928.717,113.215,2.9041,optimal,24.164,928.559,113.155,2.9634,Optimization terminated successfully
+4,172.635,1474.345,True,133,60.949443,1230.75,131.893,40.7419,optimal,60.792,1230.659,131.946,40.688,Optimization terminated successfully
+5,168.149,1410.302,True,146,34.145819,1322.772,159.418,8.7309,optimal,33.837,1322.747,159.43,8.7191,Optimization terminated successfully
+6,126.091,1081.305,True,121,50.74577,1008.122,111.391,14.7001,optimal,50.263,1008.043,111.367,14.7243,Optimization terminated successfully

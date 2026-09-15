@@ -1,0 +1,53 @@
+{
+  "generated_utc": "2026-09-15T07:15:44+00:00",
+  "evaluation_window": {
+    "start": "2026-01-11 23:00:00+00:00",
+    "end": "2026-01-18 22:45:00+00:00",
+    "steps": 672,
+    "days": 7
+  },
+  "source_series": "Data/lux_source_features.csv",
+  "site_series": "Data/ECC_master_PV_EMOB1_EMOB2_15min.csv",
+  "price_series": "/mnt/c/dev/MPC_RL/BESS_MPC_PROJECT/prices_da_real.csv",
+  "controller": "solve_ecc_mpc_two_sites, ECC_MCP_v0.5.ipynb cell 48; w_import=8, w_export=2, u in [-200,200] per site, ramp 80 kW, sum(u)=0 per site",
+  "settlement": "plan solved on the forecast, applied to realised demand and PV; never re-solved on actuals",
+  "threshold": "NONE APPLIED -- distributions reported for later derivation",
+  "candidates": [
+    {
+      "label": "production_as_served",
+      "weights": "ev_cnn_lstm_20260718.keras",
+      "scalers": "ev_scalers.joblib",
+      "weights_sha256": "7605b6f826aaef26",
+      "feature_mode": "serve"
+    },
+    {
+      "label": "production_as_fitted",
+      "weights": "ev_cnn_lstm_20260718.keras",
+      "scalers": "ev_scalers.joblib",
+      "weights_sha256": "7605b6f826aaef26",
+      "feature_mode": "train"
+    },
+    {
+      "label": "causal_full_warm_s0",
+      "weights": "ev_cnn_lstm_causal_full_warm_e20_s0.keras",
+      "scalers": "ev_scalers_causal_full_warm_e20_s0.joblib",
+      "weights_sha256": "e1ec54e687c68ffe",
+      "feature_mode": "causal"
+    },
+    {
+      "label": "causal_full_warm_s1",
+      "weights": "ev_cnn_lstm_causal_full_warm_e20_s1.keras",
+      "scalers": "ev_scalers_causal_full_warm_e20_s1.joblib",
+      "weights_sha256": "7863024c95a07c7f",
+      "feature_mode": "causal"
+    },
+    {
+      "label": "causal_d120_e12_SIGNAL",
+      "weights": "ev_cnn_lstm_causal_d120_e12_s0_SIGNAL.keras",
+      "scalers": "ev_scalers_causal_d120_e12_s0_SIGNAL.joblib",
+      "weights_sha256": "3a58b280b67a320c",
+      "feature_mode": "causal"
+    }
+  ],
+  "failures": []
+}
