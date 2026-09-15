@@ -89,6 +89,84 @@ def test_our_serve_mode_reproduces_production():
         assert abs(a - b) < 1e-6, "%s differs: %.6f vs %.6f" % (lag, a, b)
 
 
+# --------------------------------------------------------------- the fixture
+# The deployed builder is in a private repository, so CI cannot load it. The
+# fixture records what it produced -- numbers only, no production logic -- so
+# the parity claim is still checked on every push instead of silently skipped.
+
+FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "fixtures", "serving_parity.json")
+
+
+def _fixture():
+    import json
+    if not os.path.exists(FIXTURE):
+        return None
+    with open(FIXTURE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_serve_mode_matches_the_captured_production_behaviour():
+    """Runs everywhere, including CI. Proves OUR side has not drifted."""
+    fx = _fixture()
+    assert fx is not None, (
+        "no fixture at %s. Regenerate with scripts/make_parity_fixture.py on a "
+        "machine that has the deployed builder." % FIXTURE)
+
+    rng = np.random.default_rng(fx["series_seed"])
+    ev = rng.gamma(2.0, 20.0, fx["series_n"]).astype(float)
+    ours_all = engineer_features(_frame(ev), mode="serve")
+
+    for case in fx["cases"]:
+        row = ours_all.iloc[case["idx"]]
+        for name, expected in case["features"].items():
+            got = float(row[name])
+            assert abs(got - expected) < 1e-6, (
+                "idx %d, %s: we now compute %.6f, the deployed builder produced "
+                "%.6f when the fixture was captured (%s). Either our serve mode "
+                "changed, or the fixture is stale -- regenerate it against the "
+                "live builder to tell which."
+                % (case["idx"], name, got, expected, fx["generated_utc"]))
+
+
+def test_fixture_still_describes_the_live_builder():
+    """Runs only where the real builder exists. Proves THEIR side has not
+    drifted. A committed fixture is a snapshot, and this is what stops the
+    snapshot quietly going stale -- the same failure class the project exists
+    to fix."""
+    fx = _fixture()
+    prod_path = PROD_BUILDER
+    if fx is None or not os.path.exists(prod_path):
+        print("  SKIP  needs both the fixture and the deployed builder")
+        return
+
+    import hashlib
+    sha = hashlib.sha256(open(prod_path, "rb").read()).hexdigest()
+    if sha == fx["builder_sha256"]:
+        return
+
+    # The file changed. That is allowed -- but the captured behaviour must not.
+    prod = _load_prod()
+    rng = np.random.default_rng(fx["series_seed"])
+    ev = rng.gamma(2.0, 20.0, fx["series_n"]).astype(float)
+    for case in fx["cases"]:
+        served = ev.copy()
+        served[case["idx"]] = 0.0
+        got = prod.compute_lag_features(served, case["idx"])
+        for name, expected in case["features"].items():
+            assert abs(float(got[name]) - expected) < 1e-6, (
+                "THE DEPLOYED BUILDER HAS CHANGED BEHAVIOUR. %s at idx %d is now "
+                "%.6f, was %.6f when the fixture was captured on %s. Every "
+                "measurement in this repository about what the site receives "
+                "describes the old builder. Re-measure, then regenerate the "
+                "fixture." % (name, case["idx"], float(got[name]), expected,
+                              fx["generated_utc"]))
+        # behaviour intact, only the file text moved -- refresh the hash
+    print("  NOTE  builder file changed (%s -> %s) but the captured behaviour "
+          "is unchanged; refresh the fixture hash when convenient"
+          % (fx["builder_sha256"][:12], sha[:12]))
+
+
 def test_training_and_serving_disagree_today():
     """The defect, pinned. Asserted rather than skipped so that the day someone
     fixes the builder, this test tells them what they changed."""

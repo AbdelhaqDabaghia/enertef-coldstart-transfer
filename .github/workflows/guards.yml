@@ -38,10 +38,17 @@ jobs:
 
       - name: run guards
         env:
-          # The deployed builder lives in another repository and is not
-          # available here, so the serving-parity check that loads it skips
-          # while the rest of that file still runs. To make it effective in
-          # CI, vendor the builder or check it out alongside and point this at
-          # it -- that check is the one that catches train/serve drift.
+          # The deployed builder lives in a PRIVATE repository, so CI cannot
+          # load it: checking it out would need a token in a public workflow,
+          # and vendoring it would publish production code. Instead
+          # tests/fixtures/serving_parity.json records what that builder
+          # produced -- numbers only -- and the parity claim is checked against
+          # it here on every push. The two checks that need the live builder
+          # skip, and say so.
+          #
+          # This proves OUR side has not drifted. Proving THEIR side has not
+          # requires a developer run with PROD_BUILDER set, which regenerates
+          # from the live builder and fails on any behavioural change. Both
+          # halves are needed; neither is sufficient alone.
           PROD_BUILDER: ""
         run: python tests/run_all.py

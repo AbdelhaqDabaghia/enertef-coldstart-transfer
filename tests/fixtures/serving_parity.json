@@ -1,0 +1,60 @@
+{
+  "generated_utc": "2026-09-15T07:09:15+00:00",
+  "builder_path": "ev_features_builder.py",
+  "builder_sha256": "8aba8cd2c6a2ae868b157a5669ac113f8e8e2baef6dfc173e52ed864cba65ed3",
+  "builder_bytes": 24252,
+  "series_seed": 20260915,
+  "series_n": 900,
+  "series_dist": "gamma(shape=2.0, scale=20.0)",
+  "note": "Captured from the deployed builder. Numbers only -- no production logic is reproduced here. Regenerate with scripts/make_parity_fixture.py wherever the real builder is available; tests/test_serving_parity.py checks the live builder against this whenever PROD_BUILDER is set.",
+  "cases": [
+    {
+      "idx": 700,
+      "features": {
+        "roll_1h_mean": 31.596465050523072,
+        "roll_6h_mean": 34.850894333901294,
+        "roll_24h_mean": 41.25121800757205,
+        "lag_1": 36.62731682319469,
+        "lag_4": 70.51366252323523,
+        "lag_96": 75.79774941150512,
+        "lag_672": 26.243081957744717
+      }
+    },
+    {
+      "idx": 750,
+      "features": {
+        "roll_1h_mean": 82.50113948003012,
+        "roll_6h_mean": 49.25287579502342,
+        "roll_24h_mean": 39.53730007087546,
+        "lag_1": 192.14837919983927,
+        "lag_4": 173.99024853234943,
+        "lag_96": 21.683665456794508,
+        "lag_672": 40.63436569907593
+      }
+    },
+    {
+      "idx": 800,
+      "features": {
+        "roll_1h_mean": 33.84169151845272,
+        "roll_6h_mean": 28.860054650013126,
+        "roll_24h_mean": 40.346376143873606,
+        "lag_1": 31.9072446619586,
+        "lag_4": 7.055130045460471,
+        "lag_96": 17.392901766580724,
+        "lag_672": 29.262268608843634
+      }
+    },
+    {
+      "idx": 850,
+      "features": {
+        "roll_1h_mean": 27.581424717723117,
+        "roll_6h_mean": 31.057162241961123,
+        "roll_24h_mean": 34.178077200193854,
+        "lag_1": 12.396760292164297,
+        "lag_4": 27.657024859428926,
+        "lag_96": 35.82644999733348,
+        "lag_672": 13.979184696135034
+      }
+    }
+  ]
+}
