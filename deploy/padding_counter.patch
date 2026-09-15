@@ -1,0 +1,209 @@
+# =============================================================================
+# padding_counter.patch -- make silent median-padding visible.
+#
+# NOT APPLIED. ev_features_builder.py and pv_features_builder.py exist in
+# several copies (svc1-runner/, enertef-svc1-clean/, enertef-svc1-source/task/)
+# and I do not know which is deployed.
+#
+# THE DEFECT
+#
+# Both builders assemble their lookback by indexing a dict of available history
+# with timestamps anchored to NOW, filling every miss with the median:
+#
+#     ev_dict   = {r["timestamp"]: r["ev_kw"] for r in ev_history}
+#     pad_value = float(np.median([v for v in ev_dict.values() if v > 0]))
+#     for i in range(672):
+#         ts = start_time + timedelta(minutes=15 * i)
+#         ev_series[i] = ev_dict.get(ts, pad_value)      # <- silent
+#
+# fetch_ev_history_7days deliberately returns the 672 most recently AVAILABLE
+# points regardless of age (a documented fix for batchy Leneda delivery). The
+# array is then indexed by timestamps anchored to now. When the feed is stale
+# the two windows only partially overlap, and the non-overlapping tail -- the
+# MOST RECENT part of the lookback -- becomes a flat constant.
+#
+# MEASURED 2026-09-15. enertef-leneda-ingest-15min is scheduled rate(1 day)
+# (the rule name is wrong), firing 08:55 UTC with 96 rows/asset. The newest
+# telemetry point was 2026-09-13 23:45 against a clock of 2026-09-15 08:42:
+# 32.9 h stale. That is ~132 of 672 slots, about 20 % of the lookback, replaced
+# by the median -- including lag_1, for a model whose strongest feature is
+# recent load. Staleness cycles between ~9 h and ~33 h.
+#
+# WHY THE EXISTING GUARD CANNOT CATCH IT
+#
+#     if len(ev_history) < 96:      # "need at least 24h"
+#         return None
+#
+# This counts ROWS RETURNED BY THE QUERY, not SLOTS PADDED. The query can
+# return a full 672 rows and still leave 132 slots padded, because the rows are
+# at the wrong timestamps. The check is structurally blind to this failure.
+#
+# WHAT THIS PATCH DOES
+#
+# Counts padded slots, reports how recent the real data actually is, and says
+# so in the log. It does NOT introduce an acceptance threshold: what fraction
+# of padding makes a forecast unusable is a question for measurement, not for
+# me to invent. Refusal is available but opt-in and unset by default.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 0. Shared helper. Put it near the top of ev_features_builder.py; import it
+#    into pv_features_builder.py, or duplicate it there.
+# -----------------------------------------------------------------------------
+--- a/ev_features_builder.py
++++ b/ev_features_builder.py
+@@ -145,0 +145,62 @@
++def fill_series_from_history(series_dict, start_time, n_slots, pad_value,
++                             label, step_minutes=15, max_pad_fraction=None):
++    """Index `series_dict` by timestamps from start_time and report the gaps.
++
++    Returns (values, stats). stats carries:
++        n_padded         slots with no matching timestamp
++        pad_fraction     n_padded / n_slots
++        newest_real      latest timestamp actually present, or None
++        staleness_hours  age of newest_real relative to the end of the window
++        tail_padded      consecutive padded slots at the END of the window,
++                         which is the number that matters -- padding in the
++                         distant past is far less harmful than padding at t-1
++
++    max_pad_fraction is None by default. No threshold is asserted here: what
++    fraction of padding makes a forecast unusable is an empirical question and
++    nobody has measured it. Set it deliberately once someone has.
++    """
++    import numpy as _np
++    from datetime import timedelta as _td
++
++    values = _np.zeros(n_slots, dtype=_np.float32)
++    missing = _np.zeros(n_slots, dtype=bool)
++    for i in range(n_slots):
++        ts = start_time + _td(minutes=step_minutes * i)
++        if ts in series_dict:
++            values[i] = series_dict[ts]
++        else:
++            values[i] = pad_value
++            missing[i] = True
++
++    n_padded = int(missing.sum())
++    tail = 0
++    for m in missing[::-1]:
++        if not m:
++            break
++        tail += 1
++
++    newest_real = max(series_dict) if series_dict else None
++    window_end = start_time + _td(minutes=step_minutes * (n_slots - 1))
++    staleness_h = (None if newest_real is None
++                   else (window_end - newest_real).total_seconds() / 3600.0)
++
++    stats = {"n_padded": n_padded, "n_slots": n_slots,
++             "pad_fraction": n_padded / float(n_slots),
++             "tail_padded": tail, "newest_real": newest_real,
++             "staleness_hours": staleness_h}
++
++    if n_padded:
++        msg = ("[%s] lookback padded: %d/%d slots (%.1f %%) filled with the "
++               "median %.2f; %d consecutive at the END of the window "
++               "(= the most recent %.1f h). Newest real point %s, %.1f h "
++               "before the window end."
++               % (label, n_padded, n_slots, 100 * stats["pad_fraction"],
++                  pad_value, tail, tail * step_minutes / 60.0,
++                  newest_real, staleness_h if staleness_h is not None else -1))
++        # Tail padding is the harmful kind: it replaces lag_1 and the recent
++        # rolling means, which is where a next-step forecast gets its signal.
++        (logger.warning if tail else logger.info)(msg)
++
++    if max_pad_fraction is not None and stats["pad_fraction"] > max_pad_fraction:
++        raise ValueError(
++            "[%s] %.1f %% of the lookback is padded, above the configured "
++            "limit of %.1f %%. Refusing to build features from mostly "
++            "synthetic history." % (label, 100 * stats["pad_fraction"],
++                                    100 * max_pad_fraction))
++    return values, stats
+
+
+# -----------------------------------------------------------------------------
+# 1. EV sequence matrix (~line 422). Replace the silent loop.
+# -----------------------------------------------------------------------------
+@@ -422,10 +422,10 @@
+     ev_dict = {r["timestamp"]: r["ev_kw"] for r in ev_history}
+     ev_values = [v for v in ev_dict.values() if v > 0]
+     pad_value = float(np.median(ev_values)) if ev_values else 0.0
+-
+-    ev_series = np.zeros(672, dtype=np.float32)
+-    for i in range(672):
+-        ts = start_time + timedelta(minutes=15 * i)
+-        ev_series[i] = ev_dict.get(ts, pad_value)
++    ev_series, pad_stats = fill_series_from_history(
++        ev_dict, start_time, 672, pad_value, "EV seq",
++        max_pad_fraction=EV_MAX_PAD_FRACTION)
+
+
+# -----------------------------------------------------------------------------
+# 2. EV recursive forecast (~line 585). Same change; this is the path that
+#    actually serves the deployed forecast.
+# -----------------------------------------------------------------------------
+@@ -585,6 +585,9 @@
+-    ev_series_full = np.zeros(672 + horizon, dtype=np.float32)
+-    for i in range(672):
+-        ts = start_time + timedelta(minutes=15 * i)
+-        ev_series_full[i] = ev_dict.get(ts, pad_value)
++    ev_series_full = np.zeros(672 + horizon, dtype=np.float32)
++    _hist, pad_stats = fill_series_from_history(
++        ev_dict, start_time, 672, pad_value, "EV recursive",
++        max_pad_fraction=EV_MAX_PAD_FRACTION)
++    ev_series_full[:672] = _hist
+
+
+# -----------------------------------------------------------------------------
+# 3. PV builder (~line 329). The same defect, same fix.
+# -----------------------------------------------------------------------------
+--- a/pv_features_builder.py
++++ b/pv_features_builder.py
+@@ -329,8 +329,8 @@
+     pad_value = float(np.median(pv_values_for_pad)) if pv_values_for_pad else 0.0
+-    for i in range(...):
+-        ts = ...
+-        pv_kw = pv_dict.get(ts, pad_value)
++    pv_series, pv_pad_stats = fill_series_from_history(
++        pv_dict, start_time, n_slots, pad_value, "PV seq",
++        max_pad_fraction=PV_MAX_PAD_FRACTION)
+
+
+# -----------------------------------------------------------------------------
+# 4. Configuration. Unset by default, on purpose.
+# -----------------------------------------------------------------------------
+@@ -50,0 +50,8 @@
++# Refuse to build features when more than this fraction of the lookback is
++# synthetic. NOT SET by default: no one has measured what fraction actually
++# breaks the forecast, and a number invented here would be indistinguishable
++# from a measured one to whoever reads it next. Set it once e19-style
++# evaluation has been run against padded histories.
++EV_MAX_PAD_FRACTION = (float(os.environ["EV_MAX_PAD_FRACTION"])
++                       if os.environ.get("EV_MAX_PAD_FRACTION") else None)
++PV_MAX_PAD_FRACTION = (float(os.environ["PV_MAX_PAD_FRACTION"])
++                       if os.environ.get("PV_MAX_PAD_FRACTION") else None)
+
+
+# =============================================================================
+# NOTES FOR WHOEVER APPLIES THIS
+#
+# * This makes the problem VISIBLE; it does not fix it. The fix is to ingest
+#   more often than once a day, or to stop anchoring the lookback to `now` when
+#   the feed is known to lag. Both are larger decisions -- the once-a-day
+#   cadence exists because of the IP-block incident, so increasing it is not
+#   free.
+#
+# * tail_padded is the number to watch, not n_padded. Padding in the distant
+#   past is comparatively harmless; padding at the end of the window replaces
+#   lag_1 and the recent rolling means, which is where the forecast gets its
+#   signal. That is why the log escalates to WARNING only when the tail is
+#   padded.
+#
+# * The existing `if len(ev_history) < 96: return None` guard stays. It catches
+#   a different failure (too little data at all) and cannot catch this one.
+#
+# * Worth emitting pad_fraction as a CloudWatch custom metric so it can be
+#   alarmed on alongside enertef-price-fetcher-errors. A daily statistic would
+#   have shown this as a step change when the ingest cadence was reduced.
+# =============================================================================

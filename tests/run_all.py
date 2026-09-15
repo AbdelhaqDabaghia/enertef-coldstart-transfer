@@ -27,6 +27,9 @@ WHAT EACH ONE PROTECTS
   test_telemetry_sanity PV must be dark at night -- the only check in the stack
                         that can catch a POD/label swap -- and it must use LOCAL
                         night, or it flags real dawn generation all summer.
+  test_padding_counter  a stale feed silently fills the most recent ~20 % of the
+                        lookback with a median constant, and the existing
+                        row-count guard is structurally blind to it.
 
 test_serving_parity needs the deployed builder. Point PROD_BUILDER at it; if the
 path is absent that single check skips and the rest still run, so CI on a
@@ -47,6 +50,7 @@ FILES = [
     "test_settlement.py",
     "test_validation_v2.py",
     "test_telemetry_sanity.py",
+    "test_padding_counter.py",
 ]
 
 
