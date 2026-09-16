@@ -54,8 +54,16 @@ Each is traceable to a CSV under `Data/results/`.
   56.9. `e19`.
 - **A causal refit fixes most of it.** nRMSE 0.8495, bias −4.2 kW, mean
   prediction 52.7 kW. Error down 39 %, bias down 90 %. `retrain_causal`.
-- **The KPI was never settled against measurement.** Planned 11.5 % vs realised
-  6.0 % over 21 days. `e18`.
+- **The KPI was never settled against measurement.** Planned 11.5 % vs
+  simulated-on-real-data 6.0 % over 21 days. `e18`. See the warning below about
+  the word "realised".
+- **The controller never actuated anything until 2026-09-16 06:19 UTC.** The
+  MQTT publish to the chargers failed on every cycle — 400 consecutive failures
+  over the preceding fortnight, zero successes — so plans were computed, KPIs
+  claiming savings were written, and nothing reached the chargers. EMOB2 was
+  additionally never commanded at all, even in the code path. Fixed upstream in
+  svc1-runner (93bebab, 3028175). **This is the single most consequential
+  finding in the project.**
 - **The deployed controller was running on a flat price.** The ENTSO-E token
   had been returning 401 since 2026-07-02, so `contextual.prices` was stale and
   `fetch_prices` fell back to a constant 100 EUR/MWh. At a flat price an
@@ -83,9 +91,24 @@ measured.
 | "`mpc_runs` is the KPI table" | Nothing writes it. The live path is `historical.kpi_validation`. |
 | "1.74 EUR/day is the value of forecasting" | Wrong arm of the experiment, and superseded by `e18`. |
 
-**A standing caveat:** `e19`/`e20` evaluated against a contiguous CSV, so they
-exclude the stale-history padding defect. Production is worse than nRMSE 1.389
-by an unmeasured amount. Carry this wherever those figures go.
+**"Realised" is the wrong word, and it is used throughout.** Every euro figure
+this project has reported as a *realised* saving — `e18`'s 7.86 EUR/day
+included — applies the planned deviation `u` to the demand that actually
+arrived. But `u` was never dispatched before 2026-09-16 06:19 UTC, so that
+demand already reflects no control. Those figures are **counterfactuals**: what
+the site would have saved had the plan been applied. It was not applied. The
+site saved nothing.
+
+They are more honest than forecast-against-forecast, because the demand and
+prices are real. But they are simulations on real data and must be described
+that way. Read "realised" in `e18`, `e20`, `e21` and in `paper/v4` as
+**"simulated under realised conditions"**. Settlement only becomes meaningful
+from the 06:19 boundary onwards.
+
+**A second standing caveat:** `e19`/`e20` evaluated against a contiguous CSV, so
+they exclude the stale-history padding defect. `e22` measured what that costs:
++0.096 nRMSE for the causal model at the expected mean staleness of 12.4 h.
+Real, worth carrying, not large enough to overturn anything concluded.
 
 ---
 
@@ -98,20 +121,34 @@ by an unmeasured amount. Carry this wherever those figures go.
 - `enertef-leneda-ingest-15min` re-pinned `rate(1 day)` → `cron(5 0 * * ? *)`.
   Same cadence, same window, same request count.
 
+**Applied upstream in `svc1-runner`** (by another session, on top of the
+baseline commit; `f113630`, `d395ac0`, `4ea5333` committed but not yet shipped
+as of 2026-09-16):
+- `e69817e` — baseline: the feature builders, which had never been committed.
+- `0a17f7f` — padding counter (EV half).
+- `5adaa58` — `EV_FIX_B1A` gates the causal serving convention on the same flag
+  as the model pointer, so they flip together in one coordinated deploy.
+- `93bebab`, `3028175` — IoT publish fixed; both chargers now actuate.
+- `f113630` — `mpc_setpoints` written per charger.
+- `4ea5333` — the KPI row split (`cost_reduction_pct_planned` judged on 20 %,
+  `savings_eur_planned` on 5 EUR). This supersedes what was
+  `deploy/kpi_reporting.patch`, now deleted.
+
 **Written, tested, NOT applied** (all in `deploy/`):
-- `kpi_reporting.patch` — splits the percentage and EUR verdicts, fixes the
-  setpoint asset label.
 - `price_fallback.patch` — records IDLE rather than FAIL when prices are flat.
-- `padding_counter.patch` — counts padded lookback slots.
+- `padding_counter.patch` — the PV half; the EV half is applied upstream.
 - `validation_v2.py` — promotion gate with an absolute persistence floor.
 - `feature_mode_guard.py` — refuses to serve a model against features it was
   not fitted on.
 - `rehearsal_config.md` — switching to rehearsal is three env vars, no code.
 - `ingestion_cadence_proposal.md` — for the Liviu conversation.
 
-These are unapplied because `realtime_runner.py` and the feature builders exist
-in **three divergent copies** and nobody has established which is deployed.
-Resolving that is a prerequisite.
+**The "three divergent copies" concern is resolved.** There were only two:
+`enertef-svc1-clean` and `enertef-svc1-source/task` are byte-identical, and both
+are stale (2 Jul). The deployed lineage is `svc1-runner`, whose file timestamp
+matches the ECR image push to within two minutes. The two versions differ by 19
+lines, functionally only a `MIN_BASELINE_EUR_FOR_PCT` divide-by-zero guard. Do
+not patch the stale copies.
 
 **Deployment candidate:** `Data/models/ev_cnn_lstm_causal_full_warm_e20_s1.keras`
 with its paired `ev_scalers_causal_full_warm_e20_s1.joblib` — they must ship

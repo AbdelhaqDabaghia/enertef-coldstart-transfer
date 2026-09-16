@@ -1587,15 +1587,37 @@ Section~\ref{sec:mpc}. Reporting that benefit correctly requires two
 distinctions that are easy to miss, and we state them explicitly because
 the second changed our own figure by a factor of six.
 
-\subsubsection{Planned versus realised savings}
+\subsubsection{Planned versus counterfactual savings}
 The scheduler minimises an objective evaluated against the \emph{forecast}.
 Comparing a baseline cost computed from a forecast with an optimised cost
 computed from the resulting plan therefore compares two predictions and
 never touches what the site paid; an optimistic forecast lowers the planned
 cost without lowering the bill. Every figure in
 Table~\ref{tab:mpc_impact} is instead settled against the demand and
-generation that actually arrived: the plan is decided on the forecast, the
-bill is paid on reality.
+generation that actually arrived.
+
+We must however be precise about what that settlement establishes, because a
+deployment audit conducted after these measurements showed it is less than we
+first claimed. Throughout the measurement period the controller's setpoints
+never reached the chargers: the publish to the site's message broker failed on
+every control cycle --- $400$ consecutive failures over a fortnight, with no
+successes --- and one of the two charging installations was never addressed at
+all. The site therefore ran unmanaged, and its actual bill is the baseline
+column.
+
+The second column is consequently a \emph{counterfactual}: the cost the site
+would have incurred had the plan been applied to the demand and generation that
+arrived. It is a materially stronger quantity than the planned figure, since
+the demand, the generation and the prices are all measured rather than
+forecast, and it is the right quantity for comparing forecasters. But it is a
+simulation on real data, not an observation of a bill that was paid, and we
+report it as such. Genuine settlement requires a dispatched plan, which became
+possible only after the fault was corrected.
+
+We draw attention to this at some length because the error it would have caused
+is the same one this section exists to warn against: a number that is closer to
+reality than the one it replaced, and therefore easier to mistake for the thing
+itself.
 
 \subsubsection{The tariff dominates the magnitude}
 A scheduling benefit is an arbitrage benefit, so its size is governed by
@@ -1608,13 +1630,15 @@ $6.3$ between them. A saving quoted without its tariff is uninterpretable.
 
 \begin{table}[t]
 \centering
-\caption{Controller value over $21$ days against an unmanaged site,
-EUR/day. \emph{Planned} compares forecast with forecast, as is common
-practice; \emph{realised} settles the same plan against measurement.}
+\caption{Controller value over $21$ days against an unmanaged site, EUR/day.
+\emph{Planned} compares forecast with forecast, as is common practice;
+\emph{counterfactual} applies the same plan to the demand, generation and
+prices that were measured. The plan was not dispatched during this period, so
+neither column describes a bill that was paid.}
 \label{tab:mpc_impact}
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Price series} & \textbf{Planned} & \textbf{Realised} &
+\textbf{Price series} & \textbf{Planned} & \textbf{Counterfactual} &
 \textbf{Overstatement} \\
 \midrule
 Real day-ahead & $9.55$ & $\mathbf{7.86}$ & $+1.69$ \\
@@ -1623,19 +1647,28 @@ Synthetic profile & $52.46$ & $49.32$ & $+3.14$ \\
 \end{tabular}
 \end{table}
 
-Under real prices the deployed controller returns $7.86$~EUR/day. The
-planned figure exceeds it by $1.69$~EUR/day, or $18\%$ of the realised
-saving. The gap is modest here for a reason worth stating: the forecast
-bias enters both terms of the subtraction and partially cancels. It is
-nonetheless one-directional --- a forecast-against-forecast comparison
-always flatters the controller --- and it is invisible unless the
-settlement is actually performed.
+Under real prices the controller would have returned $7.86$~EUR/day had its
+plan been applied. The planned figure exceeds that by $1.69$~EUR/day, or
+$18\%$. The gap is modest here for a reason worth stating: the forecast bias
+enters both terms of the subtraction and partially cancels. It is nonetheless
+one-directional --- a forecast-against-forecast comparison always flatters the
+controller --- and it is invisible unless the settlement is actually performed.
 
-Both points concern reporting convention rather than this particular site,
-and they compound: a planned saving quoted under a synthetic price curve
-can overstate the realised benefit under real prices by more than sixfold.
-We note that an earlier version of this work reported a single-cycle figure
-obtained in exactly that way.
+Both points concern reporting convention rather than this particular site, and
+they compound: a planned saving quoted under a synthetic price curve can
+overstate the counterfactual benefit under real prices by more than sixfold. An
+earlier version of this work reported a single-cycle figure obtained in exactly
+that way.
+
+We note one further consequence of the dispatch fault for the literature this
+paper addresses. A forecasting improvement is conventionally justified by its
+downstream value, and that value is conventionally computed by simulating a
+controller on the improved forecast. Our own analysis did precisely this and
+would have reported a benefit in euros for a controller that, over the entire
+measurement period, had no physical effect whatsoever. Whether a control action
+was actually dispatched is not an implementation detail beneath the level of the
+result; it is a precondition for the result meaning anything, and it is not
+routinely checked.
 
 
 
