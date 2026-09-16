@@ -31,8 +31,12 @@ DOMAIN = os.environ.get("ENTSOE_DOMAIN", "10Y1001A1001A82H")   # DE-LU bidding z
 START = os.environ.get("PRICE_START", "202512250000")           # UTC, yyyymmddHHMM
 END = os.environ.get("PRICE_END", "202601190000")
 OUT = os.environ.get("OUT", "Data/entsoe_dayahead_DE_LU.csv")
-# web-api.tp.entsoe.eu returns 404 (checked 2026-09); transparency.entsoe.eu works
-URL = os.environ.get("ENTSOE_URL", "https://transparency.entsoe.eu/api")
+# CORRECTED 2026-09-16: this comment used to say web-api.tp.entsoe.eu returned
+# 404 and transparency.entsoe.eu worked. Both halves were wrong. The 404 came
+# from the firewall, not from ENTSO-E, and transparency.entsoe.eu/api serves
+# the web APPLICATION -- it answers 200 with an HTML page that parses to zero
+# rows, which is worse than an error because it looks like an empty market.
+URL = os.environ.get("ENTSOE_URL", "https://web-api.tp.entsoe.eu/api")
 
 
 def fetch(start, end):

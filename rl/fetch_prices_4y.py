@@ -46,7 +46,12 @@ OUT = os.environ.get("OUT", "Data/entsoe_dayahead_DE_LU_4y.csv")
 YEARS = int(os.environ.get("YEARS", "4"))
 END = pd.Timestamp(os.environ.get("PRICE_END", "2026-01-19"), tz="UTC")
 DOMAIN = os.environ.get("ENTSOE_DOMAIN", "10Y1001A1001A82H")
-URL = os.environ.get("ENTSOE_URL", "https://transparency.entsoe.eu/api")
+# web-api.tp.entsoe.eu is the API. transparency.entsoe.eu/api serves the web
+# APPLICATION: it answers 200 with an HTML page, which parses to zero rows and
+# would otherwise be indistinguishable from an empty market. The earlier note
+# in scripts/fetch_entsoe_prices.py claiming the opposite was wrong -- the 404
+# seen then came from the firewall, and the dead token was returning 401.
+URL = os.environ.get("ENTSOE_URL", "https://web-api.tp.entsoe.eu/api")
 CHUNK_DAYS = int(os.environ.get("CHUNK_DAYS", "180"))
 
 
@@ -64,6 +69,10 @@ def fetch_rows(start, end, tag):
         raise SliceFailed("HTTP %d: %s" % (r.status_code, r.text[:300]))
 
     body = r.content
+    if body[:100].lstrip()[:9].lower() == b"<!doctype" or b"<html" in body[:400].lower():
+        raise SliceFailed(
+            "got an HTML page, not the API. ENTSOE_URL is %s -- the API lives "
+            "at https://web-api.tp.entsoe.eu/api" % URL)
     docs = []
     if body[:2] == b"PK":                       # a ZIP of XML documents
         with zipfile.ZipFile(io.BytesIO(body)) as z:
