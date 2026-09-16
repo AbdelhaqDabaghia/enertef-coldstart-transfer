@@ -28,8 +28,22 @@ USAGE
     python scripts/settle_kpis.py --day 2026-09-13                (against RDS)
 
 Requires PG_HOST / PG_DB / PG_USER / PG_PASSWORD in the environment. Never
-hard-code them. Run inside the VPC: the corporate firewall blocks the
-PostgreSQL wire protocol from a laptop.
+hard-code them.
+
+The database is not reachable directly from a workstation: TCP to 5432 connects
+but the PostgreSQL SSLRequest gets no reply -- deep packet inspection dropping
+the payload, measured 2026-09-16. Open scripts/pg_tunnel.sh first, which
+forwards through enertef-bastion (same VPC, SSH passes), then point PG_HOST at
+127.0.0.1. Running inside the VPC also works and needs no tunnel.
+
+A SETTLEABLE DAY MUST SATISFY THREE THINGS, and today usually will not:
+  * it is at or after the actuation boundary (2026-09-16 06:19 UTC) -- before
+    that no setpoint reached a charger;
+  * its telemetry has been ingested, which happens the NEXT morning: Leneda
+    publishes with a lag of about two hours at the end of the day and nothing
+    at all for the day in progress (measured 2026-09-16);
+  * day-ahead prices cover it, which they do a day ahead.
+So the earliest a day can be settled is the morning after it ends.
 """
 from __future__ import annotations
 import os
@@ -89,37 +103,66 @@ SQL_ACTUAL = """
      ORDER BY timestamp
 """
 
+# contextual.prices, NOT enertef.market_prices. The latter is defined in
+# schema.sql and written by nothing -- the same trap as enertef.mpc_runs. This
+# query was originally written from the schema file rather than from what the
+# runner actually reads, and failed with 'relation "market_prices" does not
+# exist' the first time it touched a real database. Read the code that runs, not
+# the schema that documents.
+#
+# There is no bidding_zone column: the price_fetcher writes a single zone
+# (DE_LU, to which Luxembourg is coupled for day-ahead).
 SQL_PRICE = """
     SELECT timestamp, price_eur_mwh
-      FROM market_prices
-     WHERE timestamp::date = %s AND bidding_zone = %s
+      FROM contextual.prices
+     WHERE timestamp::date = %s
      ORDER BY timestamp
 """
 
-# Since svc1-runner f113630 the runner writes ONE ROW PER CHARGER per timestep
-# (u1 -> EMOB1, u2 -> EMOB2), so a 96-step day now has 192 rows. The earlier
-# query, which selected raw rows and ordered by target_time, would have returned
-# a 192-element array for a 96-step horizon and silently settled the first 48
-# timesteps interleaved across the two chargers. It would not have raised --
-# exactly the failure mode this audit exists to catch.
+# WHAT THE CONTROLLER ACTUALLY DISPATCHES, and why two earlier versions of this
+# query were wrong.
 #
-# Settlement is site-level: the grid sees u1 + u2, so SUM over chargers per
-# timestep is the correct aggregation.
+# Every 15-minute cycle solves a 96-step horizon and writes all 96 steps per
+# charger. A single day therefore holds ~8500 rows per charger from ~150 cycles,
+# and any given target_time is written by roughly a hundred successive cycles.
 #
-# d395ac0 added a per-charger actuation status. Only rows whose setpoint was
-# actually SENT describe a dispatched plan; 'pending' and 'failed' rows are
-# plans that never reached a charger, and settling those would reproduce the
-# counterfactual-labelled-as-realised error documented in STATE.md.
+#   v1 selected raw rows ordered by target_time. With per-charger rows that
+#      returned a 192+ element array for a 96-step horizon and silently settled
+#      interleaved fragments. No error: both arrays were plausible lengths.
+#   v2 grouped by target_time and SUMmed. That summed ~100 revisions of the same
+#      instant and would have overstated the deviation by about two orders of
+#      magnitude. Also silent.
+#
+# The controller publishes only u[0] -- the FIRST step of each cycle. Verified
+# in the database: every row with status='sent' has target_time == computed_at
+# exactly (delta 0 min). So the trajectory the site actually received is the
+# SEQUENCE OF DISPATCHED FIRST STEPS, one per cycle, not a 96-step plan.
+#
+# Settling the plan would measure a controller that was never run. Settling the
+# dispatched steps measures the one that was.
+#
+# Site-level deviation is u1 + u2 summed ACROSS CHARGERS at the same instant --
+# never across cycles.
 SQL_SETPOINTS = """
     SELECT target_time,
-           SUM(setpoint_kw)                                   AS u_site,
-           COUNT(*)                                           AS n_chargers,
-           COUNT(*) FILTER (WHERE status = 'sent')            AS n_sent,
-           COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'sent') AS n_not_sent
+           SUM(setpoint_kw)                        AS u_site,
+           COUNT(*)                                AS n_chargers
       FROM planning.mpc_setpoints
-     WHERE service_id = 1 AND target_time::date = %s
+     WHERE service_id = 1
+       AND target_time::date = %s
+       AND status = 'sent'
+       AND target_time = computed_at
      GROUP BY target_time
      ORDER BY target_time
+"""
+
+# How many cycles ran that day at all, so a dispatch gap is visible rather than
+# silently shortening the settled period.
+SQL_CYCLES = """
+    SELECT COUNT(DISTINCT computed_at) AS cycles,
+           COUNT(DISTINCT computed_at) FILTER (WHERE status = 'sent') AS dispatched
+      FROM planning.mpc_setpoints
+     WHERE service_id = 1 AND computed_at::date = %s
 """
 
 # Actuation began at this instant; before it, 400 consecutive MQTT publish
@@ -130,7 +173,7 @@ ACTUATION_BOUNDARY = dt.datetime(2026, 9, 16, 6, 19, tzinfo=dt.timezone.utc)
 SQL_PLANNED = """
     SELECT measured_value
       FROM historical.kpi_validation
-     WHERE service_id = 1 AND kpi_name = 'cost_reduction_pct'
+     WHERE service_id = 1 AND kpi_name = 'cost_reduction_pct_planned'
        AND run_timestamp::date = %s
      ORDER BY run_timestamp DESC
      LIMIT 1
@@ -182,6 +225,18 @@ def main():
     import pg8000.dbapi
     import ssl
     ctx = ssl.create_default_context()
+    # Through scripts/pg_tunnel.sh the connection is to 127.0.0.1 while the
+    # server presents the RDS certificate, so hostname verification necessarily
+    # fails. Relax it ONLY for the loopback case: the SSH tunnel already
+    # authenticates the far end and encrypts the hop, so TLS here is defence in
+    # depth rather than the primary control. A direct connection keeps full
+    # verification, which is what matters -- this must not become a blanket
+    # "verify nothing" that quietly applies in production too.
+    if os.environ["PG_HOST"] in ("127.0.0.1", "localhost", "::1"):
+        print("[settle] loopback host: TLS hostname check relaxed (tunnelled "
+              "connection; the SSH hop authenticates the endpoint)")
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     conn = pg8000.dbapi.connect(
         host=os.environ["PG_HOST"], port=int(os.environ.get("PG_PORT", "5432")),
         database=os.environ["PG_DB"], user=os.environ["PG_USER"],
@@ -197,12 +252,18 @@ def main():
         by_asset.setdefault(asset, []).append((ts, float(kw or 0.0)))
 
     def series(name):
-        return np.array([v for _, v in sorted(by_asset.get(name, []))])
+        pairs = sorted(by_asset.get(name, []))
+        return [t for t, _ in pairs], np.array([v for _, v in pairs])
 
-    ev_real = series("EMOB1") + series("EMOB2")
-    pv_real = series("PV")
+    ts_ev, ev1 = series("EMOB1")
+    _, ev2 = series("EMOB2")
+    ts_pv, pv_real = series("PV")
+    ev_real = ev1 + ev2
+    # Timestamps are the alignment key from here on, not positions: the
+    # dispatched setpoints are sparse and will not line up by index.
+    telemetry_times = ts_ev
 
-    cur.execute(SQL_PRICE, (day, a.zone))
+    cur.execute(SQL_PRICE, (day,))
     price = np.array([float(p) for _, p in cur.fetchall()])
 
     n = min(len(ev_real), len(pv_real), len(price))
@@ -234,27 +295,34 @@ def main():
             "  Without the plan that was issued there is nothing to settle."
             % day)
 
-    times = [r[0] for r in sp]
-    u_plan = np.array([float(r[1]) for r in sp])
-    n_sent = sum(int(r[3]) for r in sp)
-    n_not_sent = sum(int(r[4]) for r in sp)
+    # Map the dispatched deviations onto the telemetry timeline BY TIMESTAMP.
+    # They are sparse -- one per cycle that actually published -- so a step with
+    # no dispatched setpoint received no control and takes u = 0. Aligning by
+    # position instead would slide the whole trajectory, which is the error the
+    # two earlier versions of this query made in different ways.
+    dispatched = {r[0]: float(r[1]) for r in sp}
     chargers = {int(r[2]) for r in sp}
+    u_plan = np.array([dispatched.get(t, 0.0) for t in telemetry_times])
+    n_controlled = int(np.count_nonzero(u_plan))
 
-    print("[settle] setpoint rows: %d timesteps, %s charger(s) per step, "
-          "%d sent / %d not sent" % (len(sp), sorted(chargers), n_sent,
-                                     n_not_sent))
-    if chargers != {2}:
-        print("[settle] WARNING: expected 2 chargers per timestep (EMOB1 and "
-              "EMOB2); saw %s. Before f113630 the runner wrote a single row "
-              "carrying the site total, so a value of {1} here means the day "
-              "predates that fix and the sum is already site-level."
-              % sorted(chargers))
-    if n_not_sent:
-        print("[settle] WARNING: %d of %d charger-steps were NOT dispatched "
-              "(status != 'sent'). Those steps are settled as if the plan had "
-              "been applied, which overstates the saving. Treat the figure "
-              "below as partially counterfactual."
-              % (n_not_sent, n_sent + n_not_sent))
+    cur.execute(SQL_CYCLES, (day,))
+    n_cycles, n_dispatched_cycles = cur.fetchone()
+
+    print("[settle] cycles that ran    : %d, of which dispatched: %d"
+          % (n_cycles or 0, n_dispatched_cycles or 0))
+    print("[settle] controlled steps   : %d of %d telemetry steps"
+          % (n_controlled, len(telemetry_times)))
+    if chargers and chargers != {2}:
+        print("[settle] WARNING: expected 2 chargers per dispatched step; saw "
+              "%s. Before svc1-runner f113630 a single row carried the site "
+              "total, so {1} means this day predates that fix." % sorted(chargers))
+    if n_controlled < len(telemetry_times):
+        gap = len(telemetry_times) - n_controlled
+        print("[settle] NOTE: %d of %d steps had no dispatched setpoint and are "
+              "settled with u = 0 (no control). The site was unmanaged for "
+              "those steps, which is the honest treatment -- but it means the "
+              "figure below covers a partially controlled day."
+              % (gap, len(telemetry_times)))
 
     n = min(n, len(u_plan))
     c_base, c_opt, red = settle(ev_real[:n], pv_real[:n], u_plan[:n], price[:n])

@@ -98,6 +98,55 @@ def _rows_per_charger(u1, u2, status="sent"):
     return out
 
 
+# --------------------------------------------------- dispatched-step alignment
+# The controller publishes only u[0], the first step of each cycle. Verified in
+# the database: every status='sent' row has target_time == computed_at exactly.
+# So the trajectory the site received is the SEQUENCE OF DISPATCHED FIRST STEPS,
+# sparse, one per cycle -- not a 96-step plan. Aligning those by POSITION rather
+# than by TIMESTAMP slides the whole trajectory, and raises nothing.
+
+def test_sparse_dispatch_aligns_by_timestamp_not_position():
+    """22 dispatched steps against 96 telemetry steps. Positional alignment
+    would place them in the first 22 slots; timestamp alignment puts them where
+    they actually happened."""
+    telemetry_times = list(range(96))
+    dispatched = {t: -20.0 for t in range(26, 48)}      # 22 steps, mid-day
+    u = np.array([dispatched.get(t, 0.0) for t in telemetry_times])
+    assert len(u) == 96
+    assert np.count_nonzero(u) == 22
+    assert u[0] == 0.0 and u[25] == 0.0, "control must not appear before it did"
+    assert u[26] == -20.0 and u[47] == -20.0
+    assert u[48] == 0.0, "control must not persist after it stopped"
+
+    positional = np.zeros(96)
+    positional[:22] = -20.0                              # the wrong way
+    assert not np.array_equal(u, positional), (
+        "positional alignment must not coincide with timestamp alignment")
+
+
+def test_uncontrolled_steps_take_zero_not_the_last_value():
+    """A step with no dispatched setpoint received NO control. Carrying the
+    previous value forward would credit the controller with hours it never
+    acted on."""
+    telemetry_times = list(range(10))
+    dispatched = {3: -15.0}
+    u = np.array([dispatched.get(t, 0.0) for t in telemetry_times])
+    assert u[3] == -15.0
+    assert u[4] == 0.0, "no forward fill"
+    assert np.count_nonzero(u) == 1
+
+
+def test_summing_revisions_of_one_timestep_is_the_bug_we_fixed():
+    """~150 cycles each write a 96-step plan, so one target_time is written by
+    about a hundred cycles. Summing them overstates the deviation by two orders
+    of magnitude -- and both arrays are still plausible lengths."""
+    revisions = [-20.0] * 100                # the same instant, 100 cycles
+    summed = sum(revisions)
+    dispatched_only = -20.0                  # the one actually published
+    assert abs(summed) > 50 * abs(dispatched_only), (
+        "the summed version should be wildly larger, which is why it was wrong")
+
+
 def test_two_chargers_aggregate_to_site_level():
     """The grid sees u1 + u2. One row per timestep after aggregation."""
     u1 = np.full(H, -10.0)
