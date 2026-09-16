@@ -165,10 +165,30 @@ SQL_CYCLES = """
      WHERE service_id = 1 AND computed_at::date = %s
 """
 
-# Actuation began at this instant; before it, 400 consecutive MQTT publish
-# failures meant no setpoint ever reached a charger. Settling an earlier period
-# would produce a counterfactual labelled as realised.
-ACTUATION_BOUNDARY = dt.datetime(2026, 9, 16, 6, 19, tzinfo=dt.timezone.utc)
+# TWO BOUNDARIES, and settlement must use the later one.
+#
+#   06:19:31 UTC  the MQTT publish first SUCCEEDED (runner logs). Before this,
+#                 400 consecutive failures over a fortnight: no setpoint ever
+#                 reached a charger, so any earlier "saving" is counterfactual.
+#   06:33:52 UTC  image sha256:3b4021f5 shipped, bringing d395ac0 (per-charger
+#                 actuation status) and f113630 (per-charger rows).
+#
+# Between them the controller WAS actuating -- the logs prove it -- but the
+# database cannot say so. Those rows carry status='pending' and exist for EMOB1
+# only, because the code that records dispatch had not shipped yet. Verified:
+#
+#   06:19:31  EMOB1  pending     <- dispatched in fact, DB cannot tell
+#   06:19:46  EMOB1  pending     <- dispatched in fact, DB cannot tell
+#   06:33:52  EMOB1  sent    } first cycle the database can be trusted about
+#   06:33:52  EMOB2  sent    }
+#
+# Settlement therefore keys on 06:33:52 -- not when control began, but when the
+# RECORD of control became reliable. Admitting the earlier window would settle
+# genuinely dispatched steps as u = 0, understating the controller rather than
+# overstating it, but wrong either way and silently so.
+ACTUATION_BOUNDARY = dt.datetime(2026, 9, 16, 6, 33, 52, tzinfo=dt.timezone.utc)
+FIRST_ACTUATION_OBSERVED = dt.datetime(2026, 9, 16, 6, 19, 31,
+                                       tzinfo=dt.timezone.utc)
 
 SQL_PLANNED = """
     SELECT measured_value
