@@ -158,8 +158,18 @@ together, the frozen production scalers will not work.
 
 ## Open items
 
-1. **Run `scripts/settle_kpis.py` inside the VPC.** The single step that turns
-   the planned KPI into a defensible realised one. Everything else is ready.
+1. **Run `scripts/settle_kpis.py`** for a day at or after the actuation
+   boundary (2026-09-16 06:19 UTC). The single step that turns the planned KPI
+   into a defensible realised one. Everything else is ready.
+
+   It no longer has to run inside the VPC. `scripts/pg_tunnel.sh` forwards the
+   database through `enertef-bastion`, which sits in the same VPC and exists for
+   this. Measured from a workstation: TCP to RDS:5432 connects but the
+   PostgreSQL SSLRequest gets no reply — deep packet inspection dropping the
+   application payload, since the instance is `PubliclyAccessible=True` and so
+   this is not VPC isolation. SSH completes normally, so the traffic travels
+   inside the encrypted channel. The script verifies the PROTOCOL, not just the
+   socket; a TCP check passes against the broken direct path too.
 2. **Rotate the ENTSO-E token** — it passed through a chat transcript.
 3. **Subscribe an address** to `enertef-alerts`, or the alarms fire into nothing.
 4. **Decide which `realtime_runner.py` copy is deployed**, then apply the patches.
