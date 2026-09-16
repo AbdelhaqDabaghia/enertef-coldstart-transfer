@@ -96,12 +96,36 @@ SQL_PRICE = """
      ORDER BY timestamp
 """
 
+# Since svc1-runner f113630 the runner writes ONE ROW PER CHARGER per timestep
+# (u1 -> EMOB1, u2 -> EMOB2), so a 96-step day now has 192 rows. The earlier
+# query, which selected raw rows and ordered by target_time, would have returned
+# a 192-element array for a 96-step horizon and silently settled the first 48
+# timesteps interleaved across the two chargers. It would not have raised --
+# exactly the failure mode this audit exists to catch.
+#
+# Settlement is site-level: the grid sees u1 + u2, so SUM over chargers per
+# timestep is the correct aggregation.
+#
+# d395ac0 added a per-charger actuation status. Only rows whose setpoint was
+# actually SENT describe a dispatched plan; 'pending' and 'failed' rows are
+# plans that never reached a charger, and settling those would reproduce the
+# counterfactual-labelled-as-realised error documented in STATE.md.
 SQL_SETPOINTS = """
-    SELECT target_time, setpoint_kw
+    SELECT target_time,
+           SUM(setpoint_kw)                                   AS u_site,
+           COUNT(*)                                           AS n_chargers,
+           COUNT(*) FILTER (WHERE status = 'sent')            AS n_sent,
+           COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'sent') AS n_not_sent
       FROM planning.mpc_setpoints
      WHERE service_id = 1 AND target_time::date = %s
+     GROUP BY target_time
      ORDER BY target_time
 """
+
+# Actuation began at this instant; before it, 400 consecutive MQTT publish
+# failures meant no setpoint ever reached a charger. Settling an earlier period
+# would produce a counterfactual labelled as realised.
+ACTUATION_BOUNDARY = dt.datetime(2026, 9, 16, 6, 19, tzinfo=dt.timezone.utc)
 
 SQL_PLANNED = """
     SELECT measured_value
@@ -188,11 +212,20 @@ def main():
         print("[settle] WARNING: only %d of 96 steps available; the day is "
               "incomplete and the figure below is partial" % n)
 
-    # The issued plan. realtime_runner writes result['u'] = u1_opt + u2_opt to
-    # planning.mpc_setpoints, one row per step. NOTE: every row is labelled
-    # asset_id='EMOB1' although the value is the EMOB1+EMOB2 total. That is a
-    # labelling bug in the writer; the value is the one settlement needs, so we
-    # take the rows as the site-level deviation and do not split by asset.
+    # Refuse to settle a period in which nothing was dispatched.
+    if dt.datetime.combine(day, dt.time(23, 59), dt.timezone.utc) < ACTUATION_BOUNDARY:
+        raise SystemExit(
+            "[settle] %s is entirely before the actuation boundary %s.\n"
+            "  No setpoint reached a charger before that instant (400 "
+            "consecutive MQTT publish failures), so settling this day would\n"
+            "  produce a COUNTERFACTUAL -- what the site would have saved had "
+            "the plan been applied -- labelled as realised.\n"
+            "  That is the error this script exists to prevent. Use the "
+            "counterfactual figures in e18 for earlier periods, and say so."
+            % (day, ACTUATION_BOUNDARY.isoformat()))
+
+    # The issued plan, aggregated to site level. One row per charger per step
+    # since f113630, so SUM over chargers; the grid sees u1 + u2.
     cur.execute(SQL_SETPOINTS, (day,))
     sp = cur.fetchall()
     if not sp:
@@ -200,7 +233,28 @@ def main():
             "[settle] no setpoints in planning.mpc_setpoints for %s.\n"
             "  Without the plan that was issued there is nothing to settle."
             % day)
-    u_plan = np.array([float(v) for _, v in sorted(sp)])
+
+    times = [r[0] for r in sp]
+    u_plan = np.array([float(r[1]) for r in sp])
+    n_sent = sum(int(r[3]) for r in sp)
+    n_not_sent = sum(int(r[4]) for r in sp)
+    chargers = {int(r[2]) for r in sp}
+
+    print("[settle] setpoint rows: %d timesteps, %s charger(s) per step, "
+          "%d sent / %d not sent" % (len(sp), sorted(chargers), n_sent,
+                                     n_not_sent))
+    if chargers != {2}:
+        print("[settle] WARNING: expected 2 chargers per timestep (EMOB1 and "
+              "EMOB2); saw %s. Before f113630 the runner wrote a single row "
+              "carrying the site total, so a value of {1} here means the day "
+              "predates that fix and the sum is already site-level."
+              % sorted(chargers))
+    if n_not_sent:
+        print("[settle] WARNING: %d of %d charger-steps were NOT dispatched "
+              "(status != 'sent'). Those steps are settled as if the plan had "
+              "been applied, which overstates the saving. Treat the figure "
+              "below as partially counterfactual."
+              % (n_not_sent, n_sent + n_not_sent))
 
     n = min(n, len(u_plan))
     c_base, c_opt, red = settle(ev_real[:n], pv_real[:n], u_plan[:n], price[:n])

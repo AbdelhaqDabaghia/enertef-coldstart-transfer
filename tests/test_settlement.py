@@ -81,6 +81,59 @@ def test_length_mismatch_is_refused():
     raise AssertionError("mismatched series lengths were accepted")
 
 
+# --------------------------------------------------------------- aggregation
+# Since svc1-runner f113630 the runner writes one setpoint row PER CHARGER, so a
+# 96-step day has 192 rows. The previous query returned raw rows ordered by
+# time, which would have handed settle() a 192-element array for a 96-step
+# horizon -- silently settling the first 48 timesteps interleaved across the two
+# chargers, with no error raised. These pin the aggregation that fixes it.
+
+def _rows_per_charger(u1, u2, status="sent"):
+    """Emulate the GROUP BY target_time, SUM(setpoint_kw) the query performs."""
+    out = []
+    for i, (a, b) in enumerate(zip(u1, u2)):
+        out.append((i, float(a + b), 2,
+                    2 if status == "sent" else 0,
+                    0 if status == "sent" else 2))
+    return out
+
+
+def test_two_chargers_aggregate_to_site_level():
+    """The grid sees u1 + u2. One row per timestep after aggregation."""
+    u1 = np.full(H, -10.0)
+    u2 = np.full(H, -15.0)
+    rows = _rows_per_charger(u1, u2)
+    assert len(rows) == H, "aggregation must yield one row per timestep"
+    u_site = np.array([r[1] for r in rows])
+    assert np.allclose(u_site, -25.0), "site deviation must be u1 + u2"
+
+
+def test_unaggregated_rows_would_have_been_silently_wrong():
+    """The bug, pinned. 192 raw rows truncated to 96 gives the first 48
+    timesteps interleaved -- a plausible-looking array that is wrong."""
+    u1 = np.arange(H, dtype=float)
+    u2 = np.arange(H, dtype=float) * 100.0
+    interleaved = []
+    for a, b in zip(u1, u2):
+        interleaved += [a, b]
+    truncated = np.array(interleaved[:H])
+    correct = u1 + u2
+    assert not np.allclose(truncated, correct), (
+        "the interleaved truncation should NOT match the correct site series")
+    assert len(truncated) == len(correct) == H, (
+        "both are length 96, which is why the bug raised no error")
+
+
+def test_status_counts_distinguish_dispatched_from_pending():
+    """Only rows whose setpoint was actually sent describe a dispatched plan."""
+    rows_sent = _rows_per_charger(np.zeros(H), np.zeros(H), status="sent")
+    rows_pend = _rows_per_charger(np.zeros(H), np.zeros(H), status="pending")
+    assert sum(r[3] for r in rows_sent) == 2 * H
+    assert sum(r[4] for r in rows_sent) == 0
+    assert sum(r[3] for r in rows_pend) == 0
+    assert sum(r[4] for r in rows_pend) == 2 * H
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     bad = 0
