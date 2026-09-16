@@ -4,7 +4,7 @@
 in a new session. The commit log carries the reasoning; this file carries the
 conclusions.
 
-Last updated: 2026-09-15.
+Last updated: 2026-09-16.
 
 ---
 
@@ -122,8 +122,8 @@ Real, worth carrying, not large enough to overturn anything concluded.
   Same cadence, same window, same request count.
 
 **Applied upstream in `svc1-runner`** (by another session, on top of the
-baseline commit; `f113630`, `d395ac0`, `4ea5333` committed but not yet shipped
-as of 2026-09-16):
+baseline commit). All shipped 2026-09-16 as image `sha256:3b4021f5`; verified
+live with 192 setpoints (96 per charger), 7 KPIs, both chargers publishing:
 - `e69817e` — baseline: the feature builders, which had never been committed.
 - `0a17f7f` — padding counter (EV half).
 - `5adaa58` — `EV_FIX_B1A` gates the causal serving convention on the same flag
