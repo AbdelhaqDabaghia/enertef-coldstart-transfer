@@ -172,3 +172,58 @@ feature path. The train/serve rolling-mean mismatch is addressed by the causal
 retrain (`ev_cnn_lstm_causal_full_warm_e20_s1.keras`), and the
 forecast-vs-realised KPI reporting by `scripts/settle_kpis.py`. All three are
 independent, and fixing only this one will not by itself make the KPI pass.
+
+---
+
+## MEASURED 2026-09-16 — L is now known, and the answer cost an outage
+
+This section supersedes the speculation above about the publication lag. We no
+longer need to ask Liviu for **L**: it was measured, by breaking it.
+
+The ingest was re-pinned to `cron(5 0 * * ? *)` on 2026-09-15 on the reasoning
+in §5 — the window always ends at 00:00 today, so running at 08:55 merely aged
+the same batch by nine hours. That reasoning was correct about the window and
+**wrong about the data being available**.
+
+The 00:05 run returned `0 rows upserted` on all three PODs. And because every
+run fails identically, nothing ever backfilled: telemetry froze at
+2026-09-14 21:45 for two days while the forecaster ran on an increasingly
+median-padded history. The claim in §4 that a short window would be
+"self-healing" was false, and it was mine.
+
+Backfilling with explicit windows measures the lag directly:
+
+| window requested | rows returned (of 96) |
+|---|---|
+| 2026-09-14 | **96** — complete |
+| 2026-09-15 | **88** — last 8 steps (2 h) missing |
+| 2026-09-16 (current day) | **0** |
+
+So Leneda publishes with roughly a **two-hour lag at the end of the day**, and
+nothing at all for the day in progress. `L ≈ 2 h`, on top of the existing rule
+that the window must not cross into the current day.
+
+**Current schedule: `cron(0 6 * * ? *)`.** Six hours of margin over the measured
+lag. 08:55 is demonstrated working and 00:05 is demonstrated broken, so the
+safe band is somewhere between; 06:00 keeps most of the freshness gain without
+sitting near the edge. Do not move it earlier without re-measuring.
+
+### What this changes in the proposal above
+
+* The four-runs-a-day "conservative" row in §5 remains sound on volume, but any
+  run scheduled before roughly 02:00 UTC will return nothing. Schedule runs
+  **after** `00:00 + L + margin`, not around the clock.
+* Question §3.1 to Liviu ("what triggered the block") still matters. Questions
+  §3.3 and §3.4 about measuring L are answered.
+
+### A defect this exposed, and the real lesson
+
+`0 rows upserted` is logged as `[OK]`. A run that fetches nothing reports
+success, so a dead ingest is invisible in the logs and in every alarm. That is
+the same shape as the flat-price fallback: a component degrading to a
+plausible-looking no-op rather than refusing.
+
+**Recommended:** treat a zero-row fetch as a warning at minimum, and page on
+consecutive zero-row days. Had that existed, this would have surfaced in one
+day instead of two — and it would have surfaced on its own rather than because
+someone noticed the dashboard looked wrong.
