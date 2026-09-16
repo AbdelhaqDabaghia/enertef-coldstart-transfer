@@ -16,26 +16,80 @@ Writes Data/entsoe_dayahead_DE_LU_4y.csv on a 15-min UTC grid. Hourly prices
 are forward-filled onto the quarter-hour grid, which is the settlement
 convention: the hourly price applies to each quarter inside it.
 
-ENTSO-E refuses ranges longer than about a year, so the window is requested one
-year at a time and the pieces concatenated. A chunk that fails is reported and
-skipped rather than aborting the run -- four years with one bad month is still
-far better than nothing -- but the summary at the end says exactly what is
-missing, so a partial pull can never be mistaken for a complete one.
+ENTSO-E refuses ranges longer than about a year, and for anything large it
+answers with a ZIP of XML documents rather than one XML document -- a year of
+day-ahead prices comes back as `PK...`, which an XML parser rejects at the
+first byte. Both shapes are handled here, and the window is requested in
+180-day slices to keep each response small.
+
+A slice that fails is reported and skipped rather than aborting the run -- four
+years with one bad month beats nothing -- but the summary at the end names
+exactly what is missing, so a partial pull can never be mistaken for a complete
+one. When a slice comes back unparseable, its raw body is written next to the
+output so the failure can be read instead of guessed at.
 """
 from __future__ import annotations
 
+import io
 import os
 import sys
 import time
+import zipfile
 
 import pandas as pd
+import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.fetch_entsoe_prices import fetch, parse  # noqa: E402
+from scripts.fetch_entsoe_prices import parse  # noqa: E402
 
 OUT = os.environ.get("OUT", "Data/entsoe_dayahead_DE_LU_4y.csv")
 YEARS = int(os.environ.get("YEARS", "4"))
 END = pd.Timestamp(os.environ.get("PRICE_END", "2026-01-19"), tz="UTC")
+DOMAIN = os.environ.get("ENTSOE_DOMAIN", "10Y1001A1001A82H")
+URL = os.environ.get("ENTSOE_URL", "https://transparency.entsoe.eu/api")
+CHUNK_DAYS = int(os.environ.get("CHUNK_DAYS", "180"))
+
+
+class SliceFailed(Exception):
+    pass
+
+
+def fetch_rows(start, end, tag):
+    """One slice -> parsed rows. Accepts a bare XML body or a ZIP of them."""
+    params = dict(securityToken=os.environ["ENTSOE_TOKEN"].strip(),
+                  documentType="A44", in_Domain=DOMAIN, out_Domain=DOMAIN,
+                  periodStart=start, periodEnd=end)
+    r = requests.get(URL, params=params, timeout=180)
+    if r.status_code != 200:
+        raise SliceFailed("HTTP %d: %s" % (r.status_code, r.text[:300]))
+
+    body = r.content
+    docs = []
+    if body[:2] == b"PK":                       # a ZIP of XML documents
+        with zipfile.ZipFile(io.BytesIO(body)) as z:
+            for name in z.namelist():
+                docs.append(z.read(name).decode("utf-8", "replace"))
+    else:
+        docs.append(body.decode("utf-8", "replace"))
+
+    rows = []
+    for doc in docs:
+        if "Acknowledgement_MarketDocument" in doc:
+            reason = doc.split("<text>")[-1].split("</text>")[0] if "<text>" in doc else ""
+            raise SliceFailed("ENTSO-E refused the slice: %s" % reason[:200])
+        try:
+            rows.extend(parse(doc))
+        except Exception as exc:
+            dump = os.path.join(os.path.dirname(OUT) or ".",
+                                "_entsoe_raw_%s.txt" % tag.replace("..", "_"))
+            os.makedirs(os.path.dirname(dump) or ".", exist_ok=True)
+            with open(dump, "w", encoding="utf-8") as fh:
+                fh.write(doc[:200000])
+            raise SliceFailed("unparseable (%s); raw body written to %s"
+                              % (exc, dump))
+    if not rows:
+        raise SliceFailed("no TimeSeries in the response")
+    return rows
 
 
 def main():
@@ -43,7 +97,7 @@ def main():
         raise SystemExit("[prices] ENTSOE_TOKEN is not set. export it first.")
 
     start = END - pd.DateOffset(years=YEARS)
-    edges = pd.date_range(start, END, freq="365D").tolist()
+    edges = pd.date_range(start, END, freq="%dD" % CHUNK_DAYS).tolist()
     if edges[-1] < END:
         edges.append(END)
 
@@ -51,11 +105,12 @@ def main():
     for a, b in zip(edges[:-1], edges[1:]):
         tag = "%s..%s" % (a.date(), b.date())
         try:
-            rows = parse(fetch(a.strftime("%Y%m%d%H%M"), b.strftime("%Y%m%d%H%M")))
+            rows = fetch_rows(a.strftime("%Y%m%d%H%M"),
+                              b.strftime("%Y%m%d%H%M"), tag)
             df = pd.DataFrame(rows, columns=["timestamp", "price"])
             frames.append(df)
             print("[prices] %s  %6d rows" % (tag, len(df)), flush=True)
-        except SystemExit as exc:
+        except Exception as exc:
             missing.append(tag)
             print("[prices] %s  FAILED: %s" % (tag, exc), flush=True)
         time.sleep(2)          # be a good citizen; the 2026-09-10 block was ours
