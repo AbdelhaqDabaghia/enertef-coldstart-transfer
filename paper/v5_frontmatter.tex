@@ -1,0 +1,171 @@
+% ============================================================================
+% v5 front matter -- reframed. Drop-in replacement for main.tex lines 34-113
+% (title, abstract, keywords, Section I). Everything else migrates per
+% paper/V5_PLAN.md.
+%
+% Thesis: evaluation practice for forecast-driven energy management cannot
+% detect total failure. Continual learning is the system under test, not the
+% claim.
+%
+% The ledger linearity, the concavity derivation, the SAA stochastic program
+% and the RL comparison are deliberately ABSENT: they belong to paper 2. This
+% paper diagnoses the truncation defect and leaves it open.
+% ============================================================================
+
+\title{Reported versus Delivered Savings: A Deployment Audit of
+Forecast-Driven EV Charging Control}
+
+\author{
+\IEEEauthorblockN{
+Abdelhaq Dabaghia\IEEEauthorrefmark{1}\IEEEauthorrefmark{2}
+and Pedro Rodriguez\IEEEauthorrefmark{1}\IEEEauthorrefmark{2}
+}
+\IEEEauthorblockA{
+\IEEEauthorrefmark{1}
+Luxembourg Institute of Science and Technology (LIST)\\
+L-4362 Esch-sur-Alzette, Luxembourg\\
+Email: abdelhaq.dabaghia@list.lu, pedro.rodriguez@list.lu
+}
+\IEEEauthorblockA{
+\IEEEauthorrefmark{2}
+Department of Engineering, University of Luxembourg\\
+L-4365 Esch-sur-Alzette, Luxembourg
+}
+}
+
+\maketitle
+
+\begin{abstract}
+Forecast-driven energy management systems are routinely reported through
+savings that are computed rather than measured. We deploy a continual-learning
+forecasting and model-predictive-control system at a commercial site in
+Luxembourg, instrument it to settle its own economics against metered demand,
+and report what the instrumentation found. Over a fortnight of operation the
+controller computed schedules, wrote key-performance indicators claiming
+savings, and dispatched nothing: every publish to the chargers failed, 400
+consecutive times, with no successes. The same period ran on a constant
+electricity price, because the market-data credential had been rejected for ten
+weeks and the price source degraded silently to a flat default---under which an
+energy-conserving shift cannot change the bill by construction. Seven
+independent components were found answering plausibly instead of refusing.
+Re-scoring the unchanged production weights under the feature convention
+actually served raises retained-task error from $0.548$ to $1.254$~nRMSE and
+drops correlation with ground truth from $0.958$ to $0.458$; a causal refit
+recovers most of it. That correction also withdraws one of our own published
+contributions: the proximal regulariser, which beat fine-tuning under the leaky
+pipeline, is indistinguishable from it under causal features ($p=0.6953$). What
+survives is stronger---bounded rehearsal beats fine-tuning by $0.346$~nRMSE
+unanimously over ten seeds ($d_z=-17.57$) and is the only mechanism to beat
+naive persistence---yet that accuracy advantage does not reach the decisions it
+exists to support: forecasts $34\%$ better on all $35$ day--seed pairs leave
+realised controller cost statistically unchanged ($p=0.645$). We contribute a
+settlement methodology separating planned, counterfactual and settled savings,
+a measured account of silent no-op degradation, and an open guard suite mapping
+each defect class to an executable test.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Evaluation validity, deployment audit, settlement, train/serve skew, feature
+leakage, continual learning, model predictive control, electric vehicle
+charging, commercial energy site
+\end{IEEEkeywords}
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Commercial energy sites increasingly couple machine-learned forecasts to
+optimisation-based controllers: a model predicts photovoltaic generation and
+electric-vehicle charging demand, and a scheduler turns those predictions into
+setpoints that move real power. The literature on such systems is large and
+overwhelmingly positive, and it is reported almost entirely through a single
+number---the saving the controller expects to make.
+
+That number is a \emph{plan}. It is computed by subtracting the cost of an
+optimised schedule from the cost of an unmanaged one, with both terms evaluated
+on the same forecast. Nothing in the arithmetic touches a meter. A system whose
+setpoints never reach the hardware, whose price feed has silently frozen, or
+whose forecaster is being served features it was not trained on, produces
+exactly the same number as one working perfectly.
+
+We know this because we built such a system, deployed it at a commercial site
+in Luxembourg, and then instrumented it to settle its own economics against
+metered demand. The instrumentation is what this paper reports.
+
+What it found was not a degradation. For a fortnight the controller solved its
+optimisation on schedule, wrote key-performance indicators claiming savings,
+and dispatched nothing at all: the publish to the chargers failed on every
+cycle, 400 consecutive times, with zero successes. One of the two metering
+points was never addressed by the control path in the first place. Over the
+same period the scheduler was optimising against a constant price, because the
+market-data credential had been rejected for ten weeks and the price client
+degraded to a flat default---and at a flat price an energy-conserving load
+shift cannot change the bill, so the true saving was exactly zero every cycle.
+None of this appeared in any log as an error, any dashboard as a gap, or any
+alarm as a page.
+
+The pattern repeated. A promotion gate that compared candidates only to their
+predecessor, never to a naive baseline, and would therefore promote a model
+that persistence beats by a factor of $2.3$. An ingest logging \texttt{0 rows
+upserted} as success, so that a dead feed froze telemetry for two days
+invisibly. A lookback anchored to the present and filled with the training
+median wherever data had not arrived, so that roughly a fifth of the window,
+and specifically its most recent fifth, was fabricated. In each case the
+component answered plausibly instead of refusing, and in most of them the
+failure was found because a person thought a display looked wrong.
+
+The same audit reached the model itself. The endogenous rolling means used for
+training were computed over windows containing the prediction target, while the
+deployed service computed them causally; re-scoring the unchanged production
+weights under the convention actually served raises retained-task error from
+$0.548$ to $1.254$~nRMSE. This is not only a deployment defect. It reverses a
+published conclusion of our own: a proximal regulariser that beat naive
+fine-tuning under the leaky pipeline is statistically indistinguishable from it
+once features are made causal. We report that withdrawal here, with the
+evidence that forces it.
+
+The contributions of this paper are therefore about measurement rather than
+method. It proposes no new learning algorithm, and says so plainly.
+
+\begin{enumerate}
+
+\item A \textbf{settlement methodology for forecast-driven site control},
+separating \emph{planned} savings (forecast against forecast), \emph{counter-
+factual} savings (a plan settled against metered demand it never actually
+drove) and \emph{settled} savings (a dispatched plan settled against the
+demand that arrived), together with the actuation-record boundary that
+determines when the control database may be trusted about what was commanded.
+
+\item A \textbf{measured account of silent no-op degradation}: seven
+independent components at one site that answered plausibly instead of
+refusing, tabulated with the mechanism, the duration before detection, and---
+the column that matters---how each was eventually found.
+
+\item \textbf{Train/serve feature skew, quantified by controlled ablation on a
+live system}: the same weights on the same holdout, re-scored under the served
+convention, together with the causal refit that recovers most of the loss.
+
+\item A \textbf{falsification of one of our own contributions}, with the
+statistics that force it, and the result that survives correction: bounded
+rehearsal dominates both naive fine-tuning and the regulariser, unanimously
+over ten seeds, and is the only mechanism to beat naive persistence.
+
+\item \textbf{Evidence that forecast accuracy does not predict decision
+value}, together with a bound on what any online arbiter could recover from
+choosing between adaptation mechanisms.
+
+\end{enumerate}
+
+We also release the instrumentation: a guard suite that maps each defect class
+identified here to an executable test, so that the failures described are
+detectable by others rather than merely narrated.
+
+Section~\ref{sec:related} positions this against work on deployment reporting
+and evaluation validity. Section~\ref{sec:arch} describes the site and the
+deployed architecture, and Section~\ref{sec:cl} the continual-learning system
+under test. Section~\ref{sec:mpc} gives the control formulation and
+Section~\ref{sec:settle} the settlement methodology.
+Section~\ref{sec:defects} presents the defects and what each cost.
+Section~\ref{sec:setup} and Section~\ref{sec:results} give the experimental
+protocol and results, Section~\ref{sec:discussion} the limitations and what
+generalises, and Section~\ref{sec:conclusion} concludes.
