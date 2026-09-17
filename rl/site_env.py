@@ -91,10 +91,17 @@ def admissible(u_prev, budget, base_t, steps_left, ev_hi):
 class SiteEnv:
     """Vector-free, single-episode environment. No gym dependency."""
 
-    def __init__(self, ev1, ev2, pv, f1, f2, price, rng=None):
+    def __init__(self, ev1, ev2, pv, f1, f2, price, rng=None,
+                 resid1=None, resid2=None, price_dates=None, dates=None):
         self.ev1, self.ev2, self.pv = ev1, ev2, pv
         self.f1, self.f2 = f1, f2
         self.price = price
+        # Forecast residuals, ALWAYS taken from the training days, so the
+        # stochastic arm never sees the distribution of the days it is scored
+        # on. Kept per time-of-day slot: the uncertainty at 03:00, when the
+        # chargers are idle, is not the uncertainty at 18:00.
+        self.resid1, self.resid2 = resid1, resid2
+        self.price_dates, self.dates = price_dates, dates
         self.rng = rng or np.random.default_rng(0)
         self.n_days = len(ev1)
         self.n_price = len(price)
@@ -211,7 +218,34 @@ def load(datadir="rl/data", split="train", eval_days=120, seed=0):
     p = np.load("%s/prices.npz" % datadir, allow_pickle=True)
     n = len(d["ev1"])
     cut = n - eval_days
-    sl = slice(0, cut) if split == "train" else slice(cut, n)
-    return SiteEnv(d["ev1"][sl], d["ev2"][sl], d["pv"][sl],
-                   d["f1"][sl], d["f2"][sl], p["price"],
-                   rng=np.random.default_rng(seed)), d["dates"][sl], p["dates"]
+    tr = slice(0, cut)
+    sl = tr if split == "train" else slice(cut, n)
+    resid1 = d["ev1"][tr] - d["f1"][tr]
+    resid2 = d["ev2"][tr] - d["f2"][tr]
+    env = SiteEnv(d["ev1"][sl], d["ev2"][sl], d["pv"][sl],
+                  d["f1"][sl], d["f2"][sl], p["price"],
+                  rng=np.random.default_rng(seed),
+                  resid1=resid1, resid2=resid2,
+                  price_dates=p["dates"], dates=d["dates"][sl])
+    return env, d["dates"][sl], p["dates"]
+
+
+def dated_pairs(env, n_days=None):
+    """Pair each demand day with the price day of the SAME DATE.
+
+    Drawing a price day at random from four years is right for TRAINING -- it
+    turns 487 days into hundreds of thousands of scenarios and forces the
+    policy to answer the price shape rather than memorise a date. It is wrong
+    for EVALUATION: it lands 2022 crisis prices, which touched 3000 EUR/MWh, on
+    2025 demand, inflating every spread and every extreme with a combination
+    that never occurred. Scoring uses the price the site actually faced.
+    """
+    idx = {str(dt): i for i, dt in enumerate(env.price_dates)}
+    out = []
+    for i, dt in enumerate(env.dates):
+        j = idx.get(str(dt))
+        if j is not None:
+            out.append((i, j))
+        if n_days is not None and len(out) >= n_days:
+            break
+    return out

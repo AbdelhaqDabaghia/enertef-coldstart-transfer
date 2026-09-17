@@ -26,7 +26,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from rl.site_env import load, OBS_DIM, ACT_DIM, H
+from rl.site_env import load, dated_pairs, OBS_DIM, ACT_DIM, H
 from rl.sac import SAC
 from rl.baselines import ARMS
 
@@ -55,9 +55,8 @@ def main():
 
     env, dates, price_dates = load(split="eval", eval_days=args.holdout_days,
                                    seed=args.seed)
-    rng = np.random.default_rng(args.seed)
-    n = min(args.eval_days, env.n_days)
-    pairs = [(d, int(rng.integers(0, env.n_price))) for d in range(n)]
+    pairs = dated_pairs(env, args.eval_days)
+    n = len(pairs)
     print("[eval] %d held-out days: %s -> %s" % (n, dates[0], dates[n - 1]),
           flush=True)
 
@@ -97,8 +96,8 @@ def main():
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     df.to_csv(args.out, index=False)
 
-    arms = [a for a in ("mpc_deployed", "mpc_ledger", "mpc_rh", "rl", "oracle")
-            if a in df.columns]
+    arms = [a for a in ("mpc_deployed", "mpc_ledger", "mpc_rh", "mpc_saa",
+                        "rl", "oracle") if a in df.columns]
     print("\n=== EUR banked per day vs an unmanaged site, %d held-out days ===" % n)
     for a in arms:
         v = df[a].to_numpy()
@@ -108,10 +107,11 @@ def main():
           % ("base", df["base"].mean()))
 
     print("\n=== paired differences ===")
-    comparisons = [("mpc_ledger", "mpc_deployed"), ("mpc_rh", "mpc_ledger")]
+    comparisons = [("mpc_ledger", "mpc_deployed"), ("mpc_rh", "mpc_ledger"),
+                   ("mpc_saa", "mpc_ledger")]
     if "rl" in df.columns:
         comparisons += [("rl", "mpc_deployed"), ("rl", "mpc_ledger"),
-                        ("rl", "mpc_rh")]
+                        ("rl", "mpc_saa")]
     comparisons += [("oracle", "mpc_deployed")]
     for a, b in comparisons:
         d = (df[a] - df[b]).to_numpy()

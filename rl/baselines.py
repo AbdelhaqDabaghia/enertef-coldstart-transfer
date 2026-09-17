@@ -17,6 +17,11 @@ baselines.py -- the controllers the policy has to beat, none of them weak.
                   policy that sees realised demand would be beating an
                   open-loop plan and the comparison would prove nothing.
 
+    mpc_saa       the stochastic program. Same constraints, same information,
+                  but it maximises the EXPECTED settled bill over scenarios of
+                  what demand might be, instead of trusting a point forecast.
+                  This is the arm the mathematics says should win.
+
     oracle        mpc_ledger given the TRUE demand. No causal controller can
                   beat it; it is the ceiling that says how much is on the table.
 
@@ -45,7 +50,15 @@ def _program(n, objective):
     u1, u2 = cp.Variable(n), cp.Variable(n)
     pv = cp.Parameter(n)
     b1, b2 = cp.Parameter(n), cp.Parameter(n)
-    price = cp.Parameter(n, nonneg=True)
+    # NOT nonneg. Day-ahead prices go negative -- the observed range over four
+    # years is -500 to +3000 EUR/MWh -- and a negative price is the single most
+    # valuable moment to CONSUME MORE, because the site is paid to take energy.
+    # Declaring the parameter nonneg forced a clip at zero that deleted exactly
+    # those hours from the MPC's view, while the environment kept showing the
+    # true prices to the policy. The comparison was biased in the policy's
+    # favour. Both objectives are affine in the variables, so no sign
+    # assumption is needed for DCP.
+    price = cp.Parameter(n)
     u0 = cp.Parameter(2)                      # last applied setpoint, for ramp
     bud = cp.Parameter(2)                     # energy still to return
 
@@ -90,7 +103,7 @@ def _solve(n, objective, pv, b1, b2, price, u0=(0.0, 0.0), bud=(0.0, 0.0)):
     p_pv.value = np.asarray(pv, float)
     p_b1.value = np.asarray(b1, float)
     p_b2.value = np.asarray(b2, float)
-    p_pr.value = np.clip(np.asarray(price, float), 0, None)
+    p_pr.value = np.asarray(price, float)
     p_u0.value = np.asarray(u0, float)
     p_bd.value = np.asarray(bud, float)
     try:
@@ -152,9 +165,90 @@ def mpc_receding(env, day, price_day, every=4):
     return u1, u2
 
 
+# ===================================================== stochastic program ====
+#
+# The settled saving of one step is
+#
+#     s_t(u_t) = p_t * (r_t - max(r_t + u_t, 0)) = p_t * min(-u_t, r_t)
+#
+# You only bank a reduction if the demand was there to reduce. For p_t >= 0
+# that is a minimum of two affine functions, hence CONCAVE, and its expectation
+# stays concave: maximising it over the polyhedron of bounds, ramp and
+# sum(u) = 0 is a convex program, exactly solvable.
+#
+# For p_t < 0 the same expression is |p_t| * max(u_t, -r_t), which is CONVEX --
+# so the problem is not concave everywhere, and day-ahead prices in this zone
+# reach -500 EUR/MWh. The resolution is that at a negative price one never
+# wants to reduce: the site is paid to consume. Imposing u_t >= 0 on those
+# slots makes the minimum resolve to -u_t exactly, the term becomes linear, and
+# concavity is restored. That is a RESTRICTION of the feasible set, so what
+# comes back is admissible and therefore a lower bound on the true stochastic
+# optimum -- never an overstatement.
+#
+# Scenarios are a residual bootstrap taken PER TIME-OF-DAY SLOT from the
+# training days, which preserves the diurnal shape of forecast error: the
+# uncertainty at 03:00, when the chargers are usually idle, is not the
+# uncertainty at 18:00.
+
+
+def demand_scenarios(f1, f2, resid1, resid2, n, rng):
+    """n scenarios of (r1, r2) around the forecast, clipped at the floor."""
+    idx = rng.integers(0, resid1.shape[0], size=n)
+    r1 = np.maximum(f1[None, :] + resid1[idx], 0.0)
+    r2 = np.maximum(f2[None, :] + resid2[idx], 0.0)
+    return r1, r2
+
+
+def mpc_saa(env, day, price_day, n_scen=60, seed=0):
+    """Maximise the EXPECTED settled bill over demand scenarios."""
+    pv = env.pv[day]
+    pr = np.asarray(env.price[price_day], float)
+    f1, f2 = env.f1[day], env.f2[day]
+    if getattr(env, "resid1", None) is None:
+        return mpc_ledger(env, day, price_day)
+
+    rng = np.random.default_rng(seed + 1000 * int(day) + int(price_day))
+    r1s, r2s = demand_scenarios(f1, f2, env.resid1, env.resid2, n_scen, rng)
+
+    n = H
+    pos = pr >= 0.0
+    neg = ~pos
+
+    u1, u2 = cp.Variable(n), cp.Variable(n)
+    cons = [u1 >= U_LO, u1 <= U_HI, u2 >= U_LO, u2 <= U_HI,
+            cp.abs(u1[1:] - u1[:-1]) <= RAMP_MAX,
+            cp.abs(u2[1:] - u2[:-1]) <= RAMP_MAX,
+            cp.sum(u1) == 0, cp.sum(u2) == 0]
+    if neg.any():
+        # never reduce when the price pays you to consume
+        cons += [u1[neg] >= 0, u2[neg] >= 0]
+
+    obj = 0
+    if neg.any():
+        obj = obj + cp.sum(cp.multiply(pr[neg], -(u1[neg] + u2[neg]))) * DT_H / 1000.0
+    if pos.any():
+        z1 = cp.Variable((n_scen, int(pos.sum())))
+        z2 = cp.Variable((n_scen, int(pos.sum())))
+        cons += [z1 <= cp.reshape(-u1[pos], (1, int(pos.sum())), order="C"),
+                 z2 <= cp.reshape(-u2[pos], (1, int(pos.sum())), order="C"),
+                 z1 <= r1s[:, pos], z2 <= r2s[:, pos]]
+        obj = obj + (cp.sum(cp.multiply(
+            np.tile(pr[pos], (n_scen, 1)), z1 + z2))
+            * DT_H / 1000.0 / n_scen)
+
+    try:
+        cp.Problem(cp.Maximize(obj), cons).solve(solver=cp.CLARABEL, verbose=False)
+    except Exception:
+        return mpc_ledger(env, day, price_day)
+    if u1.value is None or u2.value is None:
+        return mpc_ledger(env, day, price_day)
+    return np.asarray(u1.value).ravel(), np.asarray(u2.value).ravel()
+
+
 ARMS = {
     "mpc_deployed": mpc_deployed,
     "mpc_ledger": mpc_ledger,
     "mpc_rh": mpc_receding,
+    "mpc_saa": mpc_saa,
     "oracle": oracle,
 }

@@ -26,17 +26,14 @@ import time
 
 import numpy as np
 
-from rl.site_env import load, OBS_DIM, ACT_DIM, H
+from rl.site_env import load, dated_pairs, OBS_DIM, ACT_DIM, H
 from rl.sac import SAC
 from rl.baselines import mpc_ledger
 
 
 def fixed_pairs(env, n_days, n_prices, seed=12345):
-    """Deterministic (demand day, price day) pairs for evaluation."""
-    rng = np.random.default_rng(seed)
-    days = np.arange(min(n_days, env.n_days))
-    prices = rng.integers(0, env.n_price, size=len(days))
-    return list(zip(days, prices))
+    """Held-out pairs, each demand day on the price it actually faced."""
+    return dated_pairs(env, n_days)
 
 
 def rollout_policy(agent, env, day, price_day):
