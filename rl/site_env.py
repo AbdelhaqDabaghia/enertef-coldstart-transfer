@@ -159,12 +159,21 @@ class SiteEnv:
         steps_left = H - t - 1
         a = np.clip(np.asarray(action, dtype=float), -1.0, 1.0)
 
+        # The action IS the setpoint, scaled, then clipped into the admissible
+        # interval -- not an interpolation between its ends. That distinction
+        # decides whether the agent can express "do nothing": under an
+        # interpolation, a = 0 lands on the MIDPOINT of [lo, hi], so a policy
+        # emitting zeros acts arbitrarily, and late in the day, when closing
+        # the energy budget squeezes the interval, that midpoint is extreme.
+        # Mapping directly makes a = 0 mean u = 0 whenever u = 0 is feasible,
+        # which is both the natural neutral policy and a far better-conditioned
+        # action space to explore from.
         u = np.zeros(2)
         for i, (prev, bud, base, hi_cap) in enumerate((
                 (self.u_prev[0], self.budget[0], self.b1[t], EV1_HI),
                 (self.u_prev[1], self.budget[1], self.b2[t], EV2_HI))):
             lo, hi = admissible(prev, bud, base, steps_left, hi_cap)
-            u[i] = float(np.clip(lo + (a[i] + 1.0) * 0.5 * (hi - lo), lo, hi))
+            u[i] = float(np.clip(a[i] * U_HI, lo, hi))
 
         # settle this step against what actually arrived, with the physical floor
         ev_ctrl = (max(self.r1[t] + u[0], 0.0) + max(self.r2[t] + u[1], 0.0))

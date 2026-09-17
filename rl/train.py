@@ -73,7 +73,16 @@ def main():
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--hidden", type=int, default=256)
     ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--gamma", type=float, default=0.99)
+    # Undiscounted: the objective is the day's TOTAL bill, every quarter-hour
+    # counts the same, and the horizon is finite and fixed at 96 steps with the
+    # step index in the observation. Discounting would quietly prefer acting
+    # early, which the sum(u) = 0 budget then punishes at the close.
+    ap.add_argument("--gamma", type=float, default=1.0)
+    # Per-step rewards are around 0.15 EUR. At that scale SAC's entropy term
+    # dominates the critic and the policy stays timid -- which is exactly the
+    # plateau observed. Scaling the reward changes no optimum, only the
+    # conditioning of the learning problem.
+    ap.add_argument("--reward-scale", type=float, default=10.0)
     ap.add_argument("--updates-per-step", type=int, default=1)
     ap.add_argument("--eval-every", type=int, default=20_000)
     ap.add_argument("--eval-days", type=int, default=40)
@@ -120,7 +129,14 @@ def main():
             act = agent.act(obs)
 
         obs2, rew, done, _ = train_env.step(act)
-        agent.buf.add(obs, act, rew, obs2, 0.0)   # time-limit end is not terminal
+        # The end of the day IS terminal. The next day is an independent
+        # episode with no carried state, so bootstrapping across the boundary
+        # would value the close of one day with the start of an unrelated one.
+        # Storing done=0 here -- as this did -- injects that noise into every
+        # target, and it is also what makes gamma = 1 safe: a finite horizon
+        # that genuinely terminates cannot diverge.
+        agent.buf.add(obs, act, rew * args.reward_scale, obs2,
+                      1.0 if done else 0.0)
         obs = obs2
         ep_ret += rew
 
