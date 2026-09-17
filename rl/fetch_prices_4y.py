@@ -60,7 +60,13 @@ class SliceFailed(Exception):
 
 
 def fetch_rows(start, end, tag):
-    """One slice -> parsed rows. Accepts a bare XML body or a ZIP of them."""
+    """One slice -> a DataFrame of (timestamp, price).
+
+    scripts.fetch_entsoe_prices.parse() returns a DataFrame, not a list of
+    tuples, and its columns are timestamp_utc / price_eur_mwh. Iterating it
+    yields the column NAMES, which is what produced the
+    "Shape of passed values is (2, 1)" failure. Concatenate, then rename.
+    """
     params = dict(securityToken=os.environ["ENTSOE_TOKEN"].strip(),
                   documentType="A44", in_Domain=DOMAIN, out_Domain=DOMAIN,
                   periodStart=start, periodEnd=end)
@@ -81,13 +87,13 @@ def fetch_rows(start, end, tag):
     else:
         docs.append(body.decode("utf-8", "replace"))
 
-    rows = []
+    frames = []
     for doc in docs:
         if "Acknowledgement_MarketDocument" in doc:
             reason = doc.split("<text>")[-1].split("</text>")[0] if "<text>" in doc else ""
             raise SliceFailed("ENTSO-E refused the slice: %s" % reason[:200])
         try:
-            rows.extend(parse(doc))
+            frames.append(parse(doc))
         except Exception as exc:
             dump = os.path.join(os.path.dirname(OUT) or ".",
                                 "_entsoe_raw_%s.txt" % tag.replace("..", "_"))
@@ -96,9 +102,11 @@ def fetch_rows(start, end, tag):
                 fh.write(doc[:200000])
             raise SliceFailed("unparseable (%s); raw body written to %s"
                               % (exc, dump))
-    if not rows:
+    df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    if df.empty:
         raise SliceFailed("no TimeSeries in the response")
-    return rows
+    return (df.rename(columns={"timestamp_utc": "timestamp",
+                               "price_eur_mwh": "price"})[["timestamp", "price"]])
 
 
 def main():
@@ -114,9 +122,8 @@ def main():
     for a, b in zip(edges[:-1], edges[1:]):
         tag = "%s..%s" % (a.date(), b.date())
         try:
-            rows = fetch_rows(a.strftime("%Y%m%d%H%M"),
-                              b.strftime("%Y%m%d%H%M"), tag)
-            df = pd.DataFrame(rows, columns=["timestamp", "price"])
+            df = fetch_rows(a.strftime("%Y%m%d%H%M"),
+                            b.strftime("%Y%m%d%H%M"), tag)
             frames.append(df)
             print("[prices] %s  %6d rows" % (tag, len(df)), flush=True)
         except Exception as exc:
