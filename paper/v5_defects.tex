@@ -1,0 +1,175 @@
+% ============================================================================
+% v5 Section VI -- the defect table.
+%
+% This replaces v4's Section IX "Engineering Challenges", which a reviewer
+% skims. Every row is traceable to a commit, a log line, or a CSV under
+% Data/results/. The rightmost column is the one that carries the argument:
+% almost nothing here was caught by an alarm.
+%
+% Rows marked (offline) were found by analysis of historical data rather than
+% in live operation -- they are real properties of the deployed configuration,
+% but they never announced themselves on the running system either.
+% ============================================================================
+
+\section{What the instrumentation found}
+\label{sec:defects}
+
+Settling the controller's economics against metered demand required
+instrumenting the parts of the system that had never been observed: the
+publish path to the chargers, the price client, the feature builder, the
+ingest, and the promotion gate. Each of those was believed to work, and each
+reported that it did.
+
+What follows is every defect that instrumentation surfaced, in the order it
+was found. They are not presented as a list of bugs. They share a structure,
+and the structure is the finding: \emph{a component that cannot do its job
+answers plausibly instead of refusing}. A price client with no prices returns
+a constant. An ingest that fetched nothing reports success. A gate with no
+absolute reference approves. A lookback with missing data returns the training
+median. In every case the caller receives a well-formed answer of the right
+type and the right order of magnitude, and has no way to distinguish it from a
+real one.
+
+\subsection{The defects}
+
+\begin{table*}[t]
+\centering
+\caption{Every defect the settlement instrumentation surfaced at one commercial
+site. The final column is the argument of this paper: of thirteen defects, one
+was caught by an alarm.}
+\label{tab:defects}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{0.20\textwidth}p{0.29\textwidth}p{0.24\textwidth}p{0.21\textwidth}@{}}
+\toprule
+\textbf{Component} & \textbf{What it did instead of refusing} &
+\textbf{Cost, measured} & \textbf{How it was found} \\
+\midrule
+
+Price client &
+Token rejected since 2026-07-02; fell back to a constant
+$100$~EUR/MWh &
+At a flat price an energy-conserving shift cannot change the bill:
+savings exactly $0.00$~EUR every cycle for ten weeks &
+A person thought the dashboard looked wrong \\
+
+\addlinespace
+Publish path to chargers &
+Every publish failed; the controller continued to compute schedules and write
+KPIs claiming savings &
+400 consecutive failures, zero successes, over a fortnight; the second
+metering point was never addressed by the control path at all &
+Audit \\
+
+\addlinespace
+Promotion gate &
+Compared each candidate only to its predecessor, never to a naive baseline &
+Would promote a model that na\"ive persistence beats by $2.3\times$ &
+Audit \\
+
+\addlinespace
+Telemetry ingest &
+Logged \texttt{0 rows upserted} as \texttt{[OK]} &
+Telemetry frozen for two days with no error anywhere &
+A person thought the dashboard looked wrong \\
+
+\addlinespace
+Feature lookback &
+Filled every slot that had not arrived with the training median &
+At $33$~h staleness, ${\approx}20\%$ of the window---its most recent
+fifth, including \texttt{lag\_1}---was fabricated &
+Audit \\
+
+\addlinespace
+Feature builder &
+Served rolling means computed over a different window than training used &
+Same weights, same holdout, re-scored under the served convention: nRMSE
+$0.548 \rightarrow 1.254$, correlation $0.958 \rightarrow 0.458$ &
+Audit \\
+
+\addlinespace
+KPI endpoints &
+Filtered on a metric name that no longer existed; the empty result rendered as
+a plausible zero &
+Three endpoints silently blank &
+A person thought the dashboard looked wrong \\
+
+\addlinespace
+Forecast split (offline) &
+Split the EV forecast between the two meters by \emph{charger capacity}
+($0.403/0.597$) &
+Observed consumption splits $0.723/0.277$; reductions planned where demand
+cannot absorb them are truncated while the matching increases apply in full &
+Offline analysis \\
+
+\addlinespace
+Plan settlement (offline) &
+Planned reductions against forecast demand that did not arrive &
+On one held-out day, $+16.02$~EUR planned settled at $-40.46$~EUR; 52 of 96
+steps had realised demand below $1$~kW where the forecast exceeded $5$~kW &
+Offline analysis \\
+
+\addlinespace
+Credential rotation &
+The token was rotated at the provider but not in the secret store the service
+reads &
+HTTP 401 daily for six days; the flat-price fallback re-engaged; six days of
+the first settlement window lost &
+A person thought the dashboard looked wrong \\
+
+\addlinespace
+Nightly adaptation &
+Nothing---the trigger function has no resource policy and no schedule, so it
+can only be invoked by hand &
+Last invoked 2026-08-26; twice before that, in July. The loop the system is
+built around has never run on a schedule &
+A status panel that looked wrong prompted the check \\
+
+\addlinespace
+Training source code &
+Ran from a working tree; the code that produced the deployed weights was not
+under version control &
+The deployed model was not reconstructible until 2026-09-23 &
+A peer review of artefact provenance \\
+
+\addlinespace
+Job status panel &
+Returned no match for jobs that existed, and rendered that as
+``nothing ran'' &
+Asserted the production trainer had never run, four weeks after it had &
+A person thought the dashboard looked wrong \\
+
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{What the table is evidence for}
+
+Two things, neither of which is that this particular site was badly built.
+
+\paragraph{The failures are architectural, not local.}
+A fallback that substitutes a default, a comparison with no absolute
+reference, a success code on an empty result, an imputation that fills a gap
+without marking it: none of these is specific to this site, this vendor or
+this stack. They are the ordinary patterns of defensive engineering, applied
+where the honest answer was a refusal. Each is a decision, taken once, to
+prefer a plausible answer over an error---and each is invisible precisely
+because it succeeded at that.
+
+\paragraph{Reported savings cannot detect any of them.}
+This is the consequence that matters for how such systems are evaluated. The
+number these deployments are judged by is computed by subtracting an optimised
+cost from an unmanaged one, both evaluated on the same forecast. Nothing in
+that arithmetic touches a meter. During the fortnight in which this controller
+dispatched nothing at all, on a constant price, with a forecaster served
+features it was not trained on, it reported savings in exactly the form the
+literature reports them. A planned figure is not evidence that a system works;
+it is evidence that its optimiser ran.
+
+\paragraph{Detection, where it happened at all, was incidental.}
+Of thirteen defects, one was surfaced by an alarm. Six were found because a
+person looked at a display and thought it seemed wrong---a detection mechanism
+that does not scale, does not run at night, and did not catch the ten-week
+flat price until someone happened to check. The remainder were found by
+deliberately building the settlement path described in
+Section~\ref{sec:settle}, which is to say: by measuring instead of reporting.
