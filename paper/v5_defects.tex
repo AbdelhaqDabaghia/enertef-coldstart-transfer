@@ -119,10 +119,12 @@ A person thought the dashboard looked wrong \\
 
 \addlinespace
 Nightly adaptation &
-Nothing---the trigger function has no resource policy and no schedule, so it
-can only be invoked by hand &
-Last invoked 2026-08-26; twice before that, in July. The loop the system is
-built around has never run on a schedule &
+Nothing---the trigger function had no resource policy and no schedule, so it
+could only be invoked by hand &
+Last invoked 2026-08-26; twice before that, in July. For the whole study
+period the loop the system is built around never ran on a schedule.
+\emph{Corrected 2026-09-24}: a daily rule now invokes it at 06:30~UTC,
+30~min after the telemetry ingest &
 A status panel that looked wrong prompted the check \\
 
 \addlinespace
@@ -165,6 +167,15 @@ dispatched nothing at all, on a constant price, with a forecaster served
 features it was not trained on, it reported savings in exactly the form the
 literature reports them. A planned figure is not evidence that a system works;
 it is evidence that its optimiser ran.
+
+\paragraph{Three of these were corrected while this paper was written.}
+The price client now refuses a constant fallback, the promotion gate carries an
+absolute floor against naive persistence, and the nightly adaptation is
+scheduled. We report them as defects rather than as features because they were
+defects for the period the measurements cover, and because the point of the
+table is not the final state of one site but what its instrumentation was
+unable to see. A reader should assume the same of their own deployment until
+they have settled it.
 
 \paragraph{Detection, where it happened at all, was incidental.}
 Of thirteen defects, one was surfaced by an alarm. Six were found because a
