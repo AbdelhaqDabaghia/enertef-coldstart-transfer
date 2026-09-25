@@ -1,0 +1,63 @@
+% Superseded 2026-09-25. The full Laplace/Fisher derivation, removed
+% because no equation in it is referenced elsewhere, the deployed
+% estimator is not the Fisher, and the companion transfer study shows
+% the Fisher's origin has no measurable effect once scales are equalised.
+\subsubsection{Bayesian Motivation}
+\label{sec:bayesian}
+
+We recall the EWC objective from sequential Bayesian inference,
+following~\cite{kirkpatrick2017overcoming}, to make explicit why the
+specific quadratic penalty form is justified rather than an arbitrary
+design choice. Suppose the forecaster has been trained on a previous
+batch $\mathcal{D}_A$, yielding posterior $p(\params \mid \mathcal{D}_A)$.
+When new data $\mathcal{D}_B$ arrives, Bayes' rule gives:
+\begin{equation}
+    \log p(\params \mid \mathcal{D}_A, \mathcal{D}_B) =
+    \underbrace{\log p(\mathcal{D}_B \mid \params)}_{\text{new-data likelihood}}
+    + \underbrace{\log p(\params \mid \mathcal{D}_A)}_{\text{memory of }\mathcal{D}_A}
+    + \text{K}
+    \label{eq:log_posterior}
+\end{equation}
+Critically, the entire influence of $\mathcal{D}_A$ is compressed into
+$\log p(\params \mid \mathcal{D}_A)$: the raw data need not be retained,
+unlike replay-based methods. Since this posterior is intractable for a
+deep network, EWC applies a Laplace approximation, a second-order
+Taylor expansion around the mode $\params_A^*$:
+\begin{equation}
+    p(\params \mid \mathcal{D}_A) \approx
+    \mathcal{N}(\params;\, \params_A^*,\, \fisher^{-1})
+    \label{eq:fisher_posterior}
+\end{equation}
+where the precision matrix is approximated by the Fisher Information
+Matrix, exploiting the classical identity relating $\fisher$ to the
+negative expected Hessian of the log-likelihood at the mode.
+
+\subsubsection{Fisher Information and Diagonal Approximation}
+\label{sec:fisher}
+
+The Fisher Information Matrix is defined as
+\begin{equation}
+\begin{split}
+    \fisher = \mathbb{E}_{\mathbf{x} \sim p(\mathbf{x})}
+    \mathbb{E}_{y \sim p(y \mid \mathbf{x}, \params)}
+    \Bigl[ \nabla_{\params} \log p(y \mid \mathbf{x}, \params) \\
+    \times \bigl(\nabla_{\params} \log p(y \mid \mathbf{x}, \params)\bigr)^\top \Bigr]
+\end{split}
+\label{eq:fisher_full}
+\end{equation}
+and quantifies the sensitivity of the model's predictive distribution
+to each parameter: large $F_{ii}$ indicates $\theta_i$ encodes
+information critical to matching $\mathcal{D}_A$; small $F_{ii}$
+indicates $\theta_i$ can be repurposed freely. The full matrix
+$\fisher \in \real^{n\times n}$ is intractable to store for
+$n = 78{,}337$ (our EV model); EWC retains only the diagonal,
+\begin{equation}
+    \fisher \approx \mathrm{diag}(\hat{F}_{11}, \ldots, \hat{F}_{nn}),
+    \label{eq:diag_approx}
+\end{equation}
+equivalent to a factorised Gaussian posterior
+$p(\params \mid \mathcal{D}_A) \approx \prod_i \mathcal{N}(\theta_i;
+\theta_{A,i}^*, \hat{F}_{ii}^{-1})$, reducing storage from
+$\mathcal{O}(n^2)$ to $\mathcal{O}(n)$ at the cost of discarding
+cross-parameter correlations .
+

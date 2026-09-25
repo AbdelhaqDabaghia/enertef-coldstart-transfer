@@ -638,64 +638,39 @@ the Fisher/Bayesian interpretation for any quantitative claim}. We first
 recall the Bayesian motivation that gives rise to the proximal penalty
 form, then describe the importance estimator actually used.
 
-\subsubsection{Bayesian Motivation}
+\subsubsection{Where the proximal form comes from, and what we do not claim}
 \label{sec:bayesian}
-
-We recall the EWC objective from sequential Bayesian inference,
-following~\cite{kirkpatrick2017overcoming}, to make explicit why the
-specific quadratic penalty form is justified rather than an arbitrary
-design choice. Suppose the forecaster has been trained on a previous
-batch $\mathcal{D}_A$, yielding posterior $p(\params \mid \mathcal{D}_A)$.
-When new data $\mathcal{D}_B$ arrives, Bayes' rule gives:
-\begin{equation}
-    \log p(\params \mid \mathcal{D}_A, \mathcal{D}_B) =
-    \underbrace{\log p(\mathcal{D}_B \mid \params)}_{\text{new-data likelihood}}
-    + \underbrace{\log p(\params \mid \mathcal{D}_A)}_{\text{memory of }\mathcal{D}_A}
-    + \text{K}
-    \label{eq:log_posterior}
-\end{equation}
-Critically, the entire influence of $\mathcal{D}_A$ is compressed into
-$\log p(\params \mid \mathcal{D}_A)$: the raw data need not be retained,
-unlike replay-based methods. Since this posterior is intractable for a
-deep network, EWC applies a Laplace approximation, a second-order
-Taylor expansion around the mode $\params_A^*$:
-\begin{equation}
-    p(\params \mid \mathcal{D}_A) \approx
-    \mathcal{N}(\params;\, \params_A^*,\, \fisher^{-1})
-    \label{eq:fisher_posterior}
-\end{equation}
-where the precision matrix is approximated by the Fisher Information
-Matrix, exploiting the classical identity relating $\fisher$ to the
-negative expected Hessian of the log-likelihood at the mode.
-
-\subsubsection{Fisher Information and Diagonal Approximation}
 \label{sec:fisher}
+The quadratic proximal penalty has a standard Bayesian reading: a Laplace
+approximation of the posterior over $\params$ after $\mathcal{D}_A$ gives a
+Gaussian centred at $\params_A^*$ whose precision is the Hessian of the
+negative log-posterior, and under a well-specified likelihood at a mode that
+Hessian is approximated by the Fisher information. Retaining only its diagonal
+reduces storage from $O(n^2)$ to $O(n)$ --- decisive at $n = 78{,}337$ for the
+EV model --- and yields the familiar per-parameter spring of
+Eq.~\eqref{eq:ewc}. That derivation motivates the \emph{form} of the penalty
+and we adopt it on those grounds; we refer the reader to Kirkpatrick
+\emph{et~al.}~\cite{kirkpatrick2017overcoming} and to the curvature analyses
+of~\cite{kunstner2019limitations} for its full statement and its limits.
 
-The Fisher Information Matrix is defined as
-\begin{equation}
-\begin{split}
-    \fisher = \mathbb{E}_{\mathbf{x} \sim p(\mathbf{x})}
-    \mathbb{E}_{y \sim p(y \mid \mathbf{x}, \params)}
-    \Bigl[ \nabla_{\params} \log p(y \mid \mathbf{x}, \params) \\
-    \times \bigl(\nabla_{\params} \log p(y \mid \mathbf{x}, \params)\bigr)^\top \Bigr]
-\end{split}
-\label{eq:fisher_full}
-\end{equation}
-and quantifies the sensitivity of the model's predictive distribution
-to each parameter: large $F_{ii}$ indicates $\theta_i$ encodes
-information critical to matching $\mathcal{D}_A$; small $F_{ii}$
-indicates $\theta_i$ can be repurposed freely. The full matrix
-$\fisher \in \real^{n\times n}$ is intractable to store for
-$n = 78{,}337$ (our EV model); EWC retains only the diagonal,
-\begin{equation}
-    \fisher \approx \mathrm{diag}(\hat{F}_{11}, \ldots, \hat{F}_{nn}),
-    \label{eq:diag_approx}
-\end{equation}
-equivalent to a factorised Gaussian posterior
-$p(\params \mid \mathcal{D}_A) \approx \prod_i \mathcal{N}(\theta_i;
-\theta_{A,i}^*, \hat{F}_{ii}^{-1})$, reducing storage from
-$\mathcal{O}(n^2)$ to $\mathcal{O}(n)$ at the cost of discarding
-cross-parameter correlations .
+We deliberately do not build on it further, for three reasons that our own
+measurements supply. \emph{First}, the estimator actually deployed is not the
+Fisher: it differentiates a batch-averaged squared model output with the
+labels discarded, which is the Memory Aware Synapses construction
+\cite{aljundi2018memory} rather than an empirical Fisher, and the two coincide
+only under assumptions this regression setting does not make. \emph{Second}, a
+companion transfer study on the same architecture
+\cite{dabaghia2026representation} finds the source and target
+Fisher differ by $211\times$ in scale, and that once that scale is equalised
+the Fisher's \emph{origin} has no measurable effect on either plasticity or
+retention --- so the quantity's Bayesian pedigree is not what determines its
+behaviour here. \emph{Third}, the multi-cycle results of
+Section~\ref{sec:results_seeds} show the proximal penalty does not prevent
+seasonal forgetting at all, while bounded replay does, which points to
+coverage of the past input distribution rather than parameter anchoring as the
+operative mechanism. Accordingly, no quantitative claim in this paper rests on
+a Fisher or Bayesian interpretation, and the importance estimator is described
+below on its own terms.
 
 \subsubsection{Practical Importance Estimation}
 \label{sec:practical_fisher}
@@ -1470,7 +1445,21 @@ neither retention nor the ranking (Replay${+}$OSR $\approx$ Replay) indicates
 that, once data coverage of the earlier regime is maintained, the proximal
 weight penalty contributes little---pointing to \emph{coverage of the past
 input distribution}, rather than parameter anchoring, as the operative
-mechanism. A parameter-space diagnostic supports this reading: across all
+mechanism.
+
+The same verdict is reached independently, and by a different route, in a
+companion study of \emph{cross-site} transfer
+\cite{dabaghia2026representation}: there the shift is geographic rather than
+seasonal, the target is an independent published trial rather than the site's
+own past, and yet no regulariser variant---including a true empirical Fisher
+and an EWC${+}$replay hybrid---beats a warm-start fine-tune with a small
+replay buffer. We regard the agreement of two settings that share only the
+architecture as stronger evidence than either result alone, and we note the
+overlap explicitly so it is not mistaken for a single finding reported twice.
+The two studies are complementary rather than redundant: the companion work
+cannot observe seasonal forgetting, because a single transfer step has no
+stream, and the present study cannot observe the representation effect that
+dominates its cross-site transfers. A parameter-space diagnostic supports this reading: across all
 four strategies the cumulative weight drift $\lVert\params_k-\params_0\rVert$
 grows at essentially the same rate, yet retention diverges sharply, so
 weight-space proximity does not govern retention here. We note that this shift
@@ -1780,6 +1769,12 @@ discussed in Section~\ref{sec:discussion}.
 % BIBLIOGRAPHY
 % ============================================================================
 \begin{thebibliography}{40}
+
+\bibitem{dabaghia2026representation}
+A.~Dabaghia, ``Representation beats regularization in energy transfer,''
+2026, companion study; cross-site transfer of the same architecture to the
+UK Electric Nation trial.
+
 
 \bibitem{sayed2025review}
 A.~N.~Sayed, Y.~Ruichek, \emph{et al.}, ``A review on continual
