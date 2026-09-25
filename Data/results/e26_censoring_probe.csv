@@ -1,0 +1,4 @@
+asset,slots,commanded,commanded_pct,censored,censored_pct_of_commanded,recoverable,hidden_kwh,mean_realised_kw
+EMOB1,829,748,90.23,343,45.86,398,572.62,20.83
+EMOB2,829,748,90.23,331,44.25,410,760.71,18.67
+PV,829,0,0.0,0,0.0,0,0.0,101.5
