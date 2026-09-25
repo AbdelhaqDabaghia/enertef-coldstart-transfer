@@ -1,0 +1,31 @@
+% Superseded by v5_defects.tex on 2026-09-25. Kept for reference:
+% every claim here has a row in the defect table.
+\section{Engineering Challenges}
+\label{sec:lessons}
+
+Deploying the proposed autonomous continual learning framework at a
+real commercial energy site revealed several engineering challenges beyond
+the continual learning algorithm itself. First, long-term operation
+requires software compatibility across evolving machine learning
+frameworks. We observed that models serialized under newer framework
+versions could not always be deserialized within managed training
+containers, requiring a compatibility layer to ensure reliable model
+loading.
+
+Second, model validation alone does not guarantee deployment
+readiness. Although several candidate models successfully passed the
+validation gate, ONNX export occasionally failed because of software
+limitations associated with recurrent neural network serialization.
+Treating validation and deployment as independent verification stages
+prevented incomplete models from reaching production while preserving
+the previous validated model.
+
+Finally, practical deployment highlighted operational challenges that
+are rarely considered in continual learning research, including
+computational resource allocation for nightly retraining, delayed
+availability of smart-meter measurements, and data provenance across
+multiple upstream sources. These observations demonstrate that
+successful autonomous continual learning depends not only on adaptation
+algorithms but also on a robust MLOps infrastructure capable of
+ensuring reliable long-term operation in cyber-physical energy systems.
+% ============================================================================

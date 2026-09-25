@@ -1,0 +1,1555 @@
+\documentclass[review]{elsarticle}
+
+
+%\usepackage[french]{babel}
+\usepackage[utf8]{inputenc}
+%\usepackage[cp1252]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{multirow}
+\usepackage[T1]{fontenc}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{cancel}
+\usepackage{changes}
+\setdeletedmarkup{\cancel{#1}}
+\newcommand{\stkout}[1]{\ifmmode\text{\sout{\ensuremath{#1}}}\else\sout{#1}\fi}
+\setdeletedmarkup{\stkout{#1}}
+%\frenchspacing
+
+\usepackage{mathtools}
+
+\usepackage{verbatim}
+
+%%% ------------------------------------------ %%%
+% \usepackage{placeins}
+% \usepackage[lofdepth,lotdepth]{subfig}
+% % Entre autres, pour sauter des lignes dans un titre de fiure.
+% \usepackage{caption}%[hang,small]
+% \usepackage{float}
+% Pour des figures non flottantes par exemple : placer une figure où je veux.
+%%% ------------------------------------------ %%%
+\relax
+
+\setlength{\parindent}{0pt}
+
+\addtolength{\hoffset}{-0.50cm}
+
+\addtolength{\textwidth}{2.0cm}
+
+\addtolength{\voffset}{-0.50cm}
+
+%\addtolength{\textheight}{4.00cm}
+
+%%%%rajout\'e ancienne version
+
+%%% ------------------------------------------ %%%
+\input{macros_olivier.tex}
+%%% ------------------------------------------ %%%
+
+%%% ------------------------------------------ %%%
+\input{macros_am.tex}
+%%% ------------------------------------------ %%%
+
+%%% ------------------------------------------ %%%
+
+\newcommand{\dst}{\displaystyle}
+
+\newtheorem{theorem}{THEOREM}
+\newtheorem{Lemma}{LEMMA}
+
+\usepackage[
+    colorlinks=false,
+    pdfborder={1 1 1},
+    citebordercolor=green,
+    linkbordercolor=green,
+    urlbordercolor=green
+]{hyperref}
+
+\begin{document}
+
+
+
+\begin{frontmatter}
+
+\title{A teachers' note on no-arbitrage criteria.  %
+% \Ques{shall we evoke the case of a pending droplet}%
+}
+%\tnotetext[mytitlenote]{Fully documented templates are available in the elsarticle package on \href{http://www.ctan.org/tex-archive/macros/latex/contrib/elsarticle}{CTAN}.}
+
+%% Group authors per affiliation:
+
+
+\author{Yuri Kabanov  }
+\ead{youri.kabanov@univ-fcomte.fr}
+
+\author{Christophe Stricker }
+\ead{stricker@math.univ-fcomte.fr}
+
+
+\address{UMR 6623, Laboratoire de Mathématiques,}
+
+\address{IUniversit6 de Franche-Comté.}
+\address{16 Route de Gray, F-25030 Besanon Cedex, FRANCE}
+\cortext[mycorrespondingauthor]{Corresponding author}
+
+\end{frontmatter}
+
+
+\section*{Abstract}
+
+\hspace{0.5cm}We give a new proof of the classical Dalang--Morton--Willinger theorem. %
+%%
+
+
+\textbf{Keywords:}  no-arbitrage criteria, martingale measure, Kreps-Yan theorem\\
+\textbf{Mathematics Subject Classification 2000:} 60G42
+
+%%% -------------------------------------------------------------------------- %%%
+%%% -------------------------------------------------------------------------- %%%
+
+\section{Introduction}\label{sec:intro}
+
+%%% ------------------------------------------ %%%
+\medskip
+
+
+\hspace{0.5cm}The Dalang--Morton--Willinger theorem asserts that, in a discrete-time model of a financial market, there is no arbitrage if and only if the price process is a martingale under an equivalent probability measure. This foundational result, often referred to as the \textit{First Fundamental Theorem of Asset Pricing}, plays a central role in mathematical finance~\cite{Shiryaev1999}. Its apparently simple formulation has inspired numerous efforts to develop elementary proofs~\cite{ Dalang1990, DelbaenPreprint, Jacod1998, Rogers1994, Kabanov1994, Schachermayer1992, Stricker1990}. 
+
+\hspace{0.5cm}Over the years, the theorem has been enriched by equivalent formulations that help distinguish it from the Harrison-Pliska theorem~\cite{Harrison1981}, which relies on the existence of a finite equivalent measure. Further generalizations have examined the representation of terminal portfolio gains through combinations of characteristic functions, but counterexamples show that such formulations may fail to eliminate arbitrage when convexity is absent~\cite{Yan1980}. Indeed, convexity appears to be a critical assumption for the equivalence between the absence of arbitrage and the existence of a martingale measure.
+
+This note aims to provide a new, more accessible proof of the theorem. Our approach relies only on classical results, such as the Hahn–Banach and Halmos–Savage theorems~\cite{Halmos1949}, and may be more suitable for pedagogical purposes.
+
+
+
+
+%%% ------------------------------------------ %%%
+% \newpage
+%%% ------------------------------------------ %%%
+
+%\section{Problem statment }
+\section{No-arbitrage criteria :}
+
+%\subsection{Energy minimization}
+
+\hspace{0.5cm}Let $(\Omega, \mathcal{F}, \mathcal{P})$ be a probability space.  
+We consider a finite discrete-time filtration\\ $\mathcal{F} = (\mathcal{F}_t)_{t=0,\dots,T}$, which represents the evolution of available information over time.
+$\mathcal{P}$ is the set of all predictable d-dimensional processes.\\
+Let $S = (S_t)_{t=0,\dots,T}$ be an adapted $d$-dimensional  process, where $S_t = (S_t^1, \dots, S_t^d)$ represents the prices of $d$ assets.
+$H = (H_t)_{t=1,\dots,T}$ such that $H_t$ is $\mathcal{F}_{t-1}$-measurable for each $t$.
+
+$$
+\Delta S_t = S_t - S_{t-1}.
+$$
+We define the terminal gain by following a process $H \in \mathcal{P}$ up to time $T$ as:
+\begin{equation}
+H \cdot S_T := \sum_{t=1}^T H_t \cdot \Delta S_t.
+\label{eq_1er_Princ_Thermo-1}
+\end{equation}
+ 
+And:
+$$R_T:=\left\{\xi:  \xi=H \cdot S_T,  H \in \mathcal{P}\right\}$$
+
+
+
+
+Put $A_T:=R_T-L_{+}^0$ where $L_{+}^0:\left\{\lambda I_A: \lambda\geq 0, A \in \mathcal{F}\right\}$ and let $\bar{A}_T$ be the closure of $A_T$ in probability.
+ $L_{+}^0$ is the set of non-negative random variables ( $\mathcal{F}$-measurable). and $R_T-L_{+}^0$ can be interpreted as the set of hedgeable claims. 
+    
+\begin{theorem}
+    
+
+Assume that $A_T$ is convex. Then the following conditions are equivalent:
+\begin{itemize}
+    \item[(a)] $(R_T - L_+^0) \cap L_+^0 = \{0\}$;
+    \item[(b)] $(R_T - L_+^0) \cap L_+^0 = \{0\}$ and $A_T = \bar{A}_T$;
+    
+    \item[(c)] $\bar{A}_T \cap L_+ = \{0\}$;
+    \item[(d)] There is a probability $\tilde{P} \sim P$ with $\frac{d \tilde{P}}{d P} \in L^\infty$ such that $S$ is a $\tilde{P}$-martingale.
+\end{itemize}
+
+\end{theorem}
+
+\hspace{0.5cm}\textsc{Remark 1.}
+ If $A_T$ is convex (i.e. $0 \in A_T$ and for all $\lambda, \mu>0$ and $x, y \in A_T$ we have that $\left.\lambda x+\mu y \in A_T\right)$. 
+Due to conditions (a), (d). Especially these conditions are equivalent to:
+\begin{itemize}
+    \item[(e)] $\quad R_T \cap L_0^{+}=\{0\}$;
+    \item[(f)] $\left\{\eta \Delta S_t: \eta \in L^0\left(\mathcal{F}_{t-1}\right)\right\} \cap L_0^{+}=\{0\}$ for all $t \leq T$;
+\end{itemize}    
+
+
+
+Conditions (a) and (e) are called the no arbitrage (NA) property of the model whereas condition (f) is the NA property for one-step model.
+
+The NA property for the class of all strategies (conditions (a),(e)) is equivalent to the NA property in the narrower class of bounded strategies $H$ see [3, Remark, p. 73 \cite{Kabanov2009}].\\
+\hspace{0.5cm}\textsc{Remark 2.} Notice that if $A_T = \overline{R_T-L_{+}^0}$ is convex then :
+
+$$
+\overline{A_T} \cap L^0_+ = \{0\}
+\quad \Rightarrow \quad 
+\exists\, \tilde{P} \sim P,\ \frac{d\tilde{P}}{dP} \in L^\infty,\ \text{s.t. } S \text{ is a } \tilde{P}\text{-martingale}.
+$$
+
+
+
+And:
+\\
+$$
+\exists\, \tilde{P} \sim P,\ \frac{d\tilde{P}}{dP} \in L^\infty,\ \text{s.t. } S \text{ is a } \tilde{P}\text{-martingale}.
+\quad \Rightarrow \quad 
+(R_T - L^0_+) \cap L^0_+ = \{0\}.
+$$
+
+
+
+\textsc{Proof:}
+Let $\xi \in \overline{A_T} \cap L_+^0$, so $0 \leq \xi \leq H \cdot S_T$.  
+Under the martingale measure,
+$$
+\tilde{E}[H_t \Delta S_t \mid \mathcal{F}_{t-1}] = 0.
+$$
+By iterated conditioning:
+$$
+\tilde{E}[H \cdot S_T] = 0.
+$$
+Then $$\xi = 0$$
+
+To prove the second implication in the remark, it remains to show $(\text{c}) \Rightarrow (\text{e})$.
+
+Since $A_T \subseteq R_T - L_+^0$, it suffices to show: 
+$$
+\overline{R_T - L_+^0} \subseteq \bar{A}_T.
+$$
+We prove $R_T - L_+^0 \subseteq \bar{A}_T$.
+
+Let $x = H S_T - r \in R_T - L_+^0$, where $r \in L_+^0$.  
+Since $r = \lim r_n$ for simple functions $r_n$, we get  
+$x = \lim(H S_T - r_n)$, and $H S_T - r_n \in A_T$ because $A_T$ is a convex cone.  
+Hence, $x \in \bar{A}_T$, and Therefore:
+$$
+\overline{R_T - L_+^0} \subseteq \bar{A}_T.
+$$
+
+Now, we will use the space $\mathcal{L}_{+} := \left\{ \lambda I_A : \lambda > 0,\ A \in \mathcal{F} \right\}$, and the Dalang–Morton–Willinger theorem we have:
+
+$$
+\overline{R_T - L_+^0} \cap \mathcal{L}_+ = \{0\}.
+$$
+This implies:  
+$$
+\text{(*)} \quad (R_T - L_+^0) \cap \mathcal{L}_+ = \{0\}.
+$$
+
+\hspace{0.5cm}We show that (*) implies (a).  
+Suppose (*) holds, and there exists  
+$x \in (R_T - L_+^0) \cap L_+^0$, $x \neq 0$.  
+Then $x = H S_T - h$, with $h \in L_+^0$, and for some $\varepsilon > 0$,  
+$P(x \geq \varepsilon) > 0$.
+
+Define $A := \{x \geq \varepsilon\}$. Since $x - \varepsilon I_A \geq 0$, we get:  
+$$
+\varepsilon I_A = H S_T - h - (x - \varepsilon I_A) \in R_T - L_+^0,
+$$
+contradicting (*). So, (*) $\Rightarrow$ (a).
+
+
+
+
+
+
+
+
+
+ 
+\end{remarque}
+
+
+\begin{Lemma}
+    Let $\eta^n$ be a sequence of random vectors taking values in $\mathbb{R}^d$ such that for almost all $\omega \in \Omega$ we have:
+\begin{equation}
+\liminf_n \left\|\eta^n(\omega)\right\|_d < \infty.    
+\end{equation}
+
+\\Then there is a sequence of random vectors $\tilde{\eta}^n$ taking values in $\mathbb{R}^d$ satisfying the following conditions:
+
+\begin{itemize}
+    \item[(1)] $\tilde{\eta}^n$ converges pointwise to some random vector $\eta$ almost surely, where $\eta$ takes values in $\mathbb{R}^d$.
+    \item[(2)] for almost all $\omega \in \Omega$, the sequence $\tilde{\eta}^n(\omega)$ is a convergent subsequence of the sequence $\eta^n(\omega)$.
+\end{itemize}
+
+\end{Lemma} 
+\vspace{0.3cm}
+
+\textsc{Proof:} Define the random variable $\eta_* := \liminf_n \left\| \eta^n \right\|_d.$ An increasing sequence of integer-valued random variables $\sigma_k$ such that the sequence $\eta^{\sigma_k}$ converges almost surely. Let $\sigma(0) := 0$ and define recursively:
+$
+\sigma(k) := \inf \left\{ n > \sigma(k-1) : \left| \left\| \eta^n \right\|_d - \eta_* \right| \leq \frac{1}{k} \right\}.
+$
+Now define the subsequence $\tilde{\eta}^n := \eta^{\sigma(n)}$. Notice that $\tilde{\eta}^n$ is a well-defined sequence of random vectors, and satisfies:
+$$
+\sup_n \left\| \tilde{\eta}^n \right\|_d < \infty \quad \text{a.s. on } \Omega.
+$$
+
+In particular, for the first coordinate we have: $\eta_*^1 := \liminf_n \eta^{n,1} < \infty.$ Define:
+$$
+\tau_1(0) := 0, \quad \tau_1(k) := \inf \left\{ n > \tau_1(k-1) : \left| \tilde{\eta}_n^1 - \eta_*^1 \right| \leq \frac{1}{k} \right\}, \quad k \geq 1.
+$$
+
+Repeat the same procedure for the second component using the sequence $\tilde{\eta}_{\tau_1(n)}$, and define $\tau_2(k)$ accordingly. Proceed inductively for all $d$ components.
+
+Finally, define:
+$
+\tau_n := \tau_d \circ \cdots \circ \tau_1 \circ \sigma(n),
+$
+and set:
+$
+\tilde{\eta}^n := \eta^{\tau_n}.
+$
+Then, $\tilde{\eta}^n$ is a subsequence of $\eta^n$ that converges almost surely in $\mathbb{R}^d$, as required. \hfill $\square$
+
+
+\begin{Lemma}\label{lem:important}
+   Let $\eta^n \in L^0(\mathbb{R}^d)$ be such that $\eta := \liminf_n \|\eta^n\|_d < \infty$. Then there exists a sequence $\tilde{\eta}^n \in L^0(\mathbb{R}^d)$ such that for all $\omega$, the sequence $\tilde{\eta}^n(\omega)$ is a convergent subsequence of the sequence $\eta^n(\omega)$. 
+\end{Lemma} 
+
+\textsc{Proof:} Let $\sigma_0 := 0$. Define the random times
+$
+\sigma_k := \inf\left\{n > \sigma_{k-1} : \left| \|\eta^n\|_d - \eta \right| \leq \frac{1}{k} \right\}.
+$
+Then $\tilde{\eta}^n := \eta^{\sigma_n}$ is in $L^0(\mathbb{R}^d)$ and $\sup_n \|\tilde{\eta}^n\|_d < \infty$. Working further with the sequence $\tilde{\eta}^n$,\\ we construct, applying the above procedure to the first component, a sequence $\tilde{\eta}^{1,n}$ with convergent first component and such that for all $\omega$, the sequence $\tilde{\eta}^{1,n}(\omega)$ is a subsequence of $\tilde{\eta}^n(\omega)$.
+
+Passing to the second component of the new sequence, we again apply the procedure and obtain a sequence $\tilde{\eta}^{2,n}$ with converging first two components, and so on. Iterating this construction through all $d$ components, we finally obtain a sequence $\hat{\eta}^n$ such that for all $\omega$, $\hat{\eta}^n(\omega)$ is a convergent subsequence of $\eta^n(\omega)$ with values in $\mathbb{R}^d$ and the convergence is almost sure. \hfill $\square$
+
+
+
+\hspace{1cm}\begin{Lemma}
+Let $K \supseteq -L_+$ be a closed convex cone in $L^1$ such that $K \cap L_+ = \{0\}$. Then there exists a probability measure $\widetilde{P} \sim P$ such that $\frac{d\widetilde{P}}{dP} \in L^\infty$ and
+
+$\tilde{E} \xi \leq 0$ for all $\xi \in K$.
+\end{Lemma}
+
+
+
+
+
+
+
+
+
+
+
+
+\textit{Proof:}
+By the Hahn-Banach theorem for any $x \in L_{+}^1, x \neq 0$, there is $z_x \in L^{\infty}$ such that $E z_x \xi<E z_x x$ for all $\xi \in K$. Since $K$ is a cone, we obtain $Ez_x \xi \leq 0$ for all $\xi \in K$. 
+define the set $A := \{z_x < 0\}$ and suppose $P(A) > 0$. Consider the sequence $\xi_n := -\lambda_n \mathbf{1}_A$, with $\lambda_n \to \infty$, so that $\xi_n \in K$ by the cone property Then :
+$$
+Ez_x \xi_n = -\lambda_n Ez_x \mathbf{1}_A \to \infty,
+$$
+which contradicts $Ez_x \xi \leq 0$. Hence, $z_x \leq 1$ almost surely. and finaly $0 \leq z_x \leq 1$.
+The Halmos-Savage theorem asserts that the family of measures $\left\{z_x P\right\}$ contains a countable equivalent subfamily $\left\{z_{x_i} P, i \in \mathbf{N}\right\}$ (i.e., both vanish on the same sets).
+
+
+Define
+$
+\rho := \sum_{i=1}^{\infty} 2^{-i} z_{x_i} \in L^\infty, \quad \text{and} \quad \bar{x} := \mathbf{I}_{\{\rho = 0\}}.
+$
+Then for each $i$, we have $Ez_{x_i} \bar{x} = 0$, which implies $\bar{x} = 0$ a.s. because otherwise $\bar{x} \in L_+$ and $Ez_{x_i} \bar{x} > 0$.
+
+Thus, $\rho > 0$ a.s. and we can define the measure $\widetilde{P}$ via:
+$$
+\frac{d\widetilde{P}}{dP} = c \rho, \quad \text{with } c = \frac{1}{E\rho},
+$$
+so that $\widetilde{P}$ is a probability measure equivalent to $P$. For any $\xi \in K$:
+$$
+E_{\widetilde{P}}\xi = Ec \rho \xi = c \sum_{i=1}^{\infty} 2^{-i} Ez_{x_i} \xi \leq 0,
+$$
+since each $Ez_{x_i} \xi \leq 0$ by construction. This completes the proof.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\hspace{0.5cm}\textsc{Remark 2.} The Halmos-Savage theorem, we consider the larger family $\{y P\}$ where $y$ are convex combinations of $z_x$. Then ess sup $I_{\{y>0\}}$ can be attained on an increasing sequence of $I_{\left\{y_k>0\right\}}$. Clearly, $\left\{y_k P\right\}$ is a countable equivalent subfamily of $\{y P\}$ and it is a convex envelope of a countable family $\left\{z_{x_i} P\right\}$ we are looking for.
+
+
+Let $\{z_x\}_{x \in X}$ be a family of positive measurable functions on a measurable space $(\Omega, \mathcal{F})$, with respect to a reference measure P, where X is uncountable.
+
+We define:
+$$
+Z := \{ z_x : x \in X \}, \quad Y := \left\{ y = \sum_{i=1}^n \lambda_i z_{x_i} : n \in \mathbb{N}, \lambda_i \geq 0, \sum_{i=1}^n \lambda_i = 1, x_i \in X \right\}.
+$$
+
+
+Then Y is the finite convex hull of Z. Consider the family of measures $\mathcal{P} := \{ y P : y \in Y \}.$
+
+Define:
+$$
+A := \bigcup_{y \in Y} \{ \omega \in \Omega : y(\omega) > 0 \} = \operatorname{ess\,sup}_{y \in Y} I_{\{ y > 0 \}},
+$$
+
+which represents the union of the supports of the densities y \in Y.
+
+Since the essential supremum over indicator functions can be attained by an increasing \\ sequence, there exists a sequence $\{y_k\}_{k \in \mathbb{N}} \subset Y$ such that :
+
+\begin{equation}
+I_{\{y_1 > 0\}} \le I_{\{y_2 > 0\}} \le \cdots \nearrow \operatorname{ess\,sup}_{y \in \mathcal{Y}} I_{\{ y > 0 \}} .
+\end{equation}
+
+
+Hence,
+$$
+\bigcup_{k \in \mathbb{N}} \{ y_k > 0 \} = A 
+$$
+And: 
+$$
+y_k = \sum_{i=1}^{n_k} \lambda_i^{(k)} z_{x_i^{(k)}}, \quad \text{with } x_i^{(k)} \in X.
+$$
+
+Define:
+$
+X_0 := \bigcup_{k \in \mathbb{N}} \{ x_i^{(k)} : 1 \le i \le n_k \},
+$
+which is a countable subset of $X$, and hence each $y_k$ is a convex combination of \{ z_x : x \in X_0 \}.
+
+Set:
+$
+Z_0 := \{ z_x : x \in X_0 \}, \quad Y_0 := \operatorname{conv}(Z_0),
+$
+where $\operatorname{conv}(\cdot)$ denotes the convex hull with finite combinations.
+
+\end{rem}
+
+\section{Proof of Theorem }
+
+\hspace{0.5cm}(a) $\Rightarrow$ (b) 
+By Lemma~\ref{lem:important}
+, we can show that $A_T$ is closed using simple recursion, even without assuming $\mathcal{F}_0$ is trivial.
+
+Let’s take $T = 1$. Assume $H_1^n \Delta S_1 - r^n \to \zeta$ a.s., where $H_1^n$ is $\mathcal{F}_0$-measurable and $r^n \in L_+^0$.  
+We want $\zeta = H_1 \Delta S_1 - r$ for some $H_1$ ($\mathcal{F}_0$-measurable) and $r \in L_+^0$.
+
+Each $H_1^n$ is a column vector. Stack them as a matrix:
+
+$$
+\mathbf{H}_1:=\left[\begin{array}{cccccc}
+H_1^{11} & H_1^{21} & \ldots & \ldots & H_1^{n 1} & \ldots \\
+H_1^{12} & H_1^{22} & \ldots & \ldots & H_1^{n 2} & \ldots \\
+\ldots & \ldots & \ldots & \ldots & \ldots & \ldots \\
+H_1^{1 d} & H_1^{2 d} & \ldots & \ldots & H_1^{n d} & \ldots
+\end{array}\right] .
+$$
+
+If the matrix is zero, we’re done.  
+Assume the result holds when the matrix has at least $m$ zero rows (pointwise). We now show it holds when there are $m - 1$ zero rows.
+
+We just need to find $\mathcal{F}_0$-measurable $\tilde{H}_1^k \to \tilde{H}_1$ a.s. and $\tilde{r}^k \in L_+^0$, such that:
+$$
+\tilde{H}_1^k \Delta S_1 - \tilde{r}^k \to \zeta \quad \text{a.s.}
+$$
+
+Let $\Omega_i \in \mathcal{F}_0$ form a finite partition of $\Omega$.  
+We can work on each $\Omega_i$ separately as a separate measure space.
+
+Let $\underline{H}_1 := \liminf |H_1^n|$.  
+On $\Omega_1 := \{\underline{H}_1 < \infty\}$, by Lemma~\ref{lem:important}, we can choose $\mathcal{F}_0$-measurable $\tilde{H}_1^k$ converging a.s. to a limit, and define $\tilde{r}^k$ accordingly.  
+If $\Omega_1$ has full measure, we are done.
+
+On $\Omega_2 := \{\underline{H}_1 = \infty\}$, set  
+$G_1^n := H_1^n / |H_1^n|$, $h_1^n := r_1^n / |H_1^n|$.  
+Then $G_1^n \Delta S_1 - h_1^n \to 0$ a.s.  
+By Lemma~\ref{lem:important}, we find\\
+$$\tilde{G}_1^k \to \tilde{G}_1$$ And $$\tilde{G}_1 \Delta S_1 = \tilde{h}_1 \geq 0$$  
+By (a), this gives $$\tilde{G}_1 \Delta S_1 = 0$$
+
+Since $\tilde{G}_1(\omega) \neq 0$, partition $\Omega_2$ into $\Omega_2^i \in \mathcal{F}_0$ such that $\tilde{G}_1^i \neq 0$ on $\Omega_2^i$.  
+Define $\bar{H}_1^n := H_1^n - \beta^n \tilde{G}_1$, with  
+$\beta^n := H_1^{ni} / \tilde{G}_1^i$ on $\Omega_2^i$.  
+Then $\bar{H}_1^n \Delta S_1 = H_1^n \Delta S_1$ on $\Omega_2$.  
+Now the modified matrix $\overline{\mathbf{H}}_1$ has at least $m$ zero rows.  
+Apply the induction hypothesis.
+
+\bigskip
+
+\hspace{0.5cm}To continue the time induction, assume the result holds for $(T-1)$-step models. 
+\\
+Let $\sum_{t=1}^T H_t^n \Delta S_t - r^n \to \zeta$ a.s., with $H_t^n$ $\mathcal{F}_{t-1}$-measurable, and $r^n \in L_+^0$.
+
+As in the one-step case, use $\mathbf{H}_1$.  
+On $\Omega_1$, take $\mathcal{F}_0$-measurable $\tau_k$ such that $H^k := H_1^{\tau_k} \to H_1$.  
+Then $\sum_{t=2}^T H_t^{\tau_k} \Delta S_t - r^{\tau_k} \to \zeta - H_1 \Delta S_1$,  
+reducing to the $(T-1)$-step case.
+
+On $\Omega_2$, use the same induction in $m$ (zero rows), applying the same operations to all matrices $\mathbf{H}_2, \ldots, \mathbf{H}_T$.
+
+
+
+\hspace{0.5cm}(b) $\Rightarrow$ (c) Notice that $A_T \subseteq R_T-L_{+}^0$ and $L_{+} \subseteq L_{+}^0$.
+
+\hspace{0.5cm}(c) $\Rightarrow$ (d)
+For any random variable $\eta$, there exists an equivalent probability $P'$ with bounded density such that $\eta \in L^1(P')$ e.g., take $P' = C e^{-|\eta|} P$.
+
+Property (c) (as well as (a) and (b)) is preserved under equivalent change of measure.  
+So we can assume all $S_t$ are integrable.
+
+Define $A_T^1 := \bar{A}_T \cap L^1$, which is convex and closed in $L^1$.  
+Since $A_T^1 \cap L_+^1 = \{0\}$, (by Theorem 2.1.4 ,~\cite{Kabanov2009}), there exists $\tilde{P} \sim P$ with bounded density such that:
+$
+\tilde{E}[\xi] \leq 0 \quad \text{for all } \xi \in A_T^1.
+$
+
+In particular, this holds for $\xi = \pm H_t \Delta S_t$, where $H_t$ is bounded and $\mathcal{F}_{t-1}$-measurable.  
+Hence,
+$$
+\tilde{E}[\Delta S_t \mid \mathcal{F}_{t-1}] = 0.
+$$
+\hspace{0.5cm}(d) $\Rightarrow$ (a) 
+Let $\xi \in A_T \cap L_+^0$, so $0 \leq \xi \leq H \cdot S_T$.  
+Under a martingale measure,\\
+$
+\tilde{E}[H_t \Delta S_t \mid \mathcal{F}_{t-1}] = 0.
+$
+Then, by iterated expectations,
+$
+\tilde{E}[H \cdot S_T] = 0.
+$
+Thus, $\xi = 0$.
+
+
+
+
+\textbf{Acknowledgement.} The authors are grateful to H.-J. Engelbert and H. von Weizsäcker who indicated that Lemma 2 allows to avoid measurable selection arguments.
+
+
+
+
+
+
+
+
+
+
+
+
+\bibliographystyle{plain}
+\bibliography{biblio_articles}
+
+\end{document}
+
+
+
+
+
+
+
+
+Let us consider a capillary bridge, whose liquid phase is denoted $\Omega_l$  of volume $V$, between two solid substrates $\Omega_s$ in contact with the liquid on the portion $\omega_{sl}$ of its boundary.
+The other part of the boundary of the solid $\Omega_s$, which is  surrounded by  the gas phase, is noted $\omega_{sg}$. Obviously,  we have  $\partial \Omega_s =  \omega_{sl} \cup  \omega_{sg} $. The capillary bridge  (fluid phase $\Omega_l$) is in contact with the gas on the part $\omega_{lg}$ of its boundary, such that $\partial \Omega_l =  \omega_{lg} \cup  \omega_{sl} $. \\
+\medskip
+The thermodynamical system $\Omega$ considered here consists of the liquid phase  $\Omega_l$, of the  solid substrates $\Omega_s$ and of their interfaces $\omega_{lg}$, $\omega_{sl}$ and $\omega_{sg}$. 
+ At thermodynamical equilibrium (no phase change, constant chemical potentials and temperature), the relevant state function of the system is its Grand potential\footnote{Referred to as Grand Canonical potential as well.}  $E_{\Omega}$ \cite{DeGennes_2004}. 
+%
+\medskip
+In the absence of body force acting on the system, we consider that the  Grand potential of the system only depends on surface  densities of free energy, $\galg$, $\gasl$, $\gasg$, respectively, assumed to be constant    \textcolor{red}{ [il faudrait citer une ref sur la forme classique de $E_{\Omega}$ sans $\gaslg$]} and also on and a line energy $\gaslg$ assumed to be constant as well:
+%
+\begin{equation}
+	 E_{\Omega} = \galg  \Alg \  + \gasl  \Asl  +  \gasg    \Asg \pm \gaslg   \Lslg  
+	\label{eq_1er_Princ_Thermo-2}
+\end{equation}
+where $\ \Alg$ denotes  the  liquid-gas interface area, $\Asl$  the solid-liquid interface area,  $\Asg$  the solid-gas interface area and $ \Lslg$ is  the length of the contact line. 
+The $\pm$ sign distinguishes the cases where the contact line is advancing on a dry solid substrate before reaching its equilibrium (positive sign), from the case where the contact line is receding on the substrate (negative sign). Note that in the definition (\ref{eq_1er_Princ_Thermo-2})  of the free energy of the system,  we propose to add a supplementary term modeling the line energy $ \pm \gaslg   \Lslg  
+$ which is less classical\footnote{\textcolor{red}{Its existence have been discussed in  [citer qq refs]. } } and enables to model the hysteresis of the contact angle (advancing/receding) which is observed experimentally  \textcolor{red}{[citer qq refs]. } Without adding this line energy contribution, the energy minimization of the system would lead to the  classical Young equation which does not take into account this hysteresis effect (see section \ref{sec:GYL}).  
+
+%
+\medskip
+As we have obviously
+$\Asl  +  \Asg = A_s $ where $A_s$ denoted the total surface of the solid substates,  the free energy variation of the system $\delta E_{\Omega}$  may be easily deduced from Eq. (\ref{eq_1er_Princ_Thermo-2}) provided the solid substrates are rigid and therefore $\delta  A_s = 0$:
+\begin{equation}
+	 \delta   E_{\Omega} = \galg  \delta    + \Alg \   (\gasl - \gasg) \delta    \Asl   \pm \gaslg  \delta    \Lslg  
+	\label{eq_1er_Princ_Thermo-3}
+\end{equation}
+%%
+%%
+%\medskip
+For the considered assumptions the first law of thermodynamics reads in adiabatic conditions:
+\begin{equation}
+	\delta E_{\Omega} - W_{F_{\textrm{ext/sys}}} = 0
+	\label{eq_1er_Princ_Thermo}
+\end{equation}
+where $W_{F_{\textrm{ext/sys}}}$ is the related mechanical work performed by the resultant of external forces acting on the system $\Omega$. The latter may be decomposed into, on one hand the pressure forces acting on the fluid phase ${\Omega_l} $ and on the second hand the external forces acting on the solid substrates  ${\Omega_s} $.  \\
+%%
+%%
+The elementary  resultant  pressure forces acting on the fluid phase writes\footnote{They  are exerted on the  liquid-gas interface $\omega_{lg} $ and on  the solid-gas interface  $\omega_{lg} $ (as the solid in rigid, we have a transmission of pressure force  due to the gas through it).} :
+$$d {F_{\textrm{ext}/{\Omega_l}}}
+ = \Delta P \ dS  \  n_{\Omega_l}$$ 
+where $n_{\Omega_l}$ denotes the unit external normal to  $\Omega_l$  and $\Delta P=P_{\text{liquid}} - P_{\text{gas}}$ the capillary pressure (pressure difference between inside and outside the capillary bridge). 
+%
+%
+\medskip
+The mechanical work of the external pressure force then may be written as:
+\begin{equation}
+	W_{F_{\textrm{ext}/{\Omega_l}}}
+	= \int_{\partial\Omega}   \Delta P \ n_\Omega.\delta u \  dS
+		\label{work-Fp}
+\end{equation}
+where $ \delta u$ denoted the  displacement corresponding to the variation $\delta$. As the capillary pressure is constant, we get\footnote{It can be proved in a rigorous and general way that 
+$ \displaystyle{ \int_{\omega_{lg} }       n_{lg}.  \delta u  dS  +  \  \int_{\omega_{ls} }    n_{ls}. \delta u   dS  =  \delta V}$ whatever the displacement  $\delta u$ is. }:
+\begin{equation}
+	W_{F_{\textrm{ext}/{\Omega_l}}}
+ =\Delta P \left(   \int_{\omega_{lg} }       n_{lg}.  \delta u  dS  +  \  \int_{\omega_{ls} }     n_{ls}. \delta u  dS  \right)   = \Delta P \  \delta V
+		\label{work-Fp2}
+\end{equation}
+ where $\delta V$ is the volume variation of the liquid bridge and  $n_{lg}$ (respectively $n_{ls}$) the unit outer normal to $\omega_{lg} $ (respectively to $\omega_{ls}$). 
+%
+%
+\medskip
+Therefore, the first law of thermodynamics reduces to the following equation: 
+\begin{equation}
+\label{eq:energie_plan}
+ \galg  \delta  \Alg \  + (\gasl - \gasg)  \delta \Asl \pm \gaslg  \delta  \Lslg  - \Delta P \  \delta V -   W_{F_{\textrm{ext}/{\Omega_s}}}
+= 0
+\end{equation}
+where $W_{F_{\textrm{ext}/{\Omega_s}}}$ denoted the work of external forces exerted on the solid substrates $\Omega_s$. 
+%
+
+\section{Explicit calculation for an axisymmetric capillary bridge }\label{sec:der_yylg_variations_symbridge}
+
+
+\subsection{The bridge geometry}\label{subsec:symmetric_bridge_geometry}
+
+%%% ------------------------------------------ %%%
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.4\linewidth]{figures_article/sym_bridge.pdf}
+%%
+\caption{An axisymmetric capillary bridge, symmetric with respect to the $Oyz$ plane}
+    \label{fig:sym_bridge}
+\end{figure}
+%%% ------------------------------------------ %%%
+
+Let us consider the capillary bridge of figure~\ref{fig:sym_bridge}, parametrized with its meridian $\yx(x)$ % 
+which is assumed to be a smooth function. %
+The lower and upper contact abscissa are denoted $\xc$ and $-\xc$, respectively and the radii of wetting surfaces $y(-x_c)= y(x_c)$ that will be noted later $y_c$. The domain occupied by the liquid is noted $\Omega_l$.
+
+%%% ------------------------------------------ %%%
+\begin{figure}[h!]
+\centering
+
+\includegraphics[width=0.4\linewidth]{figures_article/truncated_bridge.pdf}
+\caption{Contact angle $\contactangle$ and %$y(x)$ derivative: $\ypc=\tan{\derangle}$%
+tangent at $y(x)$ curve at the contact line $(\xc,\,\yc)$.
+}
+\label{fig:truncated_bridge}
+\end{figure}
+%%% ------------------------------------------ %%%
+
+The contact angle $\contactangle$, which is assumed to be the same everywhere, verifies the boundary condition (Figure~\ref{fig:truncated_bridge}):%
+
+, which is assumed to be the same everywhere, verifies the boundary condition (Figure~\ref{fig:truncated_bridge}):%
+
+%%% ------------------------------------------ %%%
+\begin{align}
+\yp (\xc_1) &= \cot\contactangle_1 \label{eq:ypc_cot_theta_head_section_ii}
+\\
+\yp (-\xc_2) &= -\cot\contactangle_2 \label{eq:ypmc_cot_theta_head_section_ii}
+% \\
+% \label{eq:ypc_cot_theta_head_section_ii}
+\end{align}
+%%% -----------------------------6------------- %%%
+
+
+
+ \subsection{Energy minimization }
+With the parametrization of the capillary bridge chosen, the total volume of the capillary bridge $V$, the associated liquid-gas surface $\Alg$, the solid-liquid surface $\Asl$ and the length $\Lslg$ of the triple line %
+may be easily calculated:
+
+\begin{itemize}
+% \begin{enumerate}
+%%
+\item Liquid bridge volume: %
+%%
+\begin{equation}
+\label{eq:vol_tot_bridge_2pl}
+V = \int\limits_{-x_{c}}^{x_{c}} \pi y(x)^2 \,\diff x \, ;
+\end{equation}
+%%
+\item Liquid-gas surface:
+%%
+\begin{equation}
+\label{eq:Surface_entre_deux plans}
+\Alg = \int\limits_{ -\xc}^{\xc} 2 \pi y(x) \sqrt{1+\ypsq} \,\diff x \, ;
+\end{equation}
+%%
+\item Solid-liquid surface:%, from both extremities:
+%%
+\begin{equation}
+\label{eq:Surface_plans_contact}
+\Asl =  2\pi  y^2(x_c) \, ;
+\end{equation}
+%%
+% \newcounter{stock}
+% \setcounter{stock}{\value{enumi}}
+% \end{enumerate}
+\end{itemize}
+%%
+where both bridge extremities are considered. 
+
+%%
+\begin{itemize}
+% \begin{enumerate}
+% \setcounter{enumi}{\value{stock}}
+\item Finally, the total triple lines length (including upper and lower one) is given by:
+%%
+\begin{equation}
+\label{eq:ligne_plans_contact}
+\Lslg =  4\pi y(x_c) \, .
+\end{equation}
+% \end{enumerate}
+\end{itemize}
+
+% %%% ------------------------------------------ %%%
+% \subsection{Young-Laplace and Young equations}\label{subsec:yyl_without_line_energy}
+
+%%% ------------------------------------------ %%%
+% \subsection{Energy minimization}
+
+
+
+%%% ------------------------------------------ %%%
+%\subsection{Energy minimization}
+
+%Provided the explicit formula for the energy  (\ref{eq_1er_Princ_Thermo-3})-(\ref{eq_1er_Princ_Thermo}), %
+%a total energy variation%
+%\footnote{%
+%It corresponds to the energy variation under a virtual displacement $\delta y$ of the liquid phase, %
+%including the its trace $\delta\yc$ on the contact line.} %
+%is written as a linear combination of the variations $\delta V$, $\delta \Alg$ and $\delta \Asl$. %
+%%
+%A critical point of the energy functional satisfies the necessary condition $\delta E - \delta W_{ext} = 0$ where $ \delta W_{ext}$ denoted the work of external forces when they exist. Equivalently, we have: 
+%%
+%\begin{equation}
+%\label{eq:energie_plan}
+ %-\Delta P \  \delta V  + \galg  \delta  \Alg \  + (\gasl - \gasg)  \delta \Asl \pm \gaslg  \delta  \Lslg  - W_{ext}= 0 \\
+%\end{equation}
+%
+%
+\textcolor{red}{In a first time, the calculations of energy minimisation are performed with an imposed capillary pressure $-\Delta P$. In the case of an imposed volume of fluid, a Lagrange multiplier\footnote{It is possible to prove that the Lagrange multiplier is equal to the capillary pressure (with an opposite sign), leading to the same expression of the energy variation.} must be introduced, traducing the imposed constraint.  }\\ %
+%%
+According to \eqref{eq:vol_tot_bridge_2pl}, we have:
+%%
+\begin{equation*}
+\delta V =  2 \pi  \displaystyle{  \int\limits_{ -\xc}^{\xc}  \delta  (  \pi y^2(x) ) \,\diff x} = \displaystyle{  2 \pi  \int\limits_{-\xc}^{\xc}  y(x) \delta y(x) \,\diff x}
+\end{equation*}
+%%
+provided the substrate positions $\xc$ and $-\xc$ are fixed ($\delta \xc=0$), that is the case in this section for all the calculations. In section \ref{sec:nonsym_bridge}, we will consider moving boundaries and the calculations are a little more subtle.   \\
+%
+%
+Under the same condition, we get from~\eqref{eq:Surface_entre_deux plans}:
+%%
+\begin{equation}
+\label{eq:Surface_min}
+\begin{split}
+\delta \Alg =%
+2 \pi 
+\int\limits_{-\xc}^{\xc} \left(   \sqrt{1+\ypsq(x)}\,\delta y(x) %\,\diff x %
++\frac{y(x)\,\yp(x)}{\sqrt{1 + \ypsq(x)}} \delta \yp(x) %
+\right)
+\,\diff x \,.
+\\
+\end{split}
+\end{equation}
+
+\medskip
+When integrating by part the second term in the right hand side of (\ref{eq:Surface_min}), it comes:
+%%
+\begin{equation}
+\label{eq:Surface_min_ipp}
+ \displaystyle{ \int\limits_{-\xc}^{\xc}    \frac{y(x) \yp(x)}{\sqrt{1 + \ypsq(x)}} \delta \yp(x) \,\diff x     =
+ \left\lbrack  \frac{y(x) \yp(x)}{\sqrt{1 + \ypsq(x)}} \delta y(x) \right\rbrack_{-\xc}^{\xc} }- \displaystyle{ \int\limits_{-\xc}^{\xc}    \left( \frac{y(x) \yp(x)}{\sqrt{1 + \ypsq(x)}}\right)^{'} \delta y(x) \,\diff x  }
+ \end{equation}
+
+Obviously:
+\begin{equation}
+\label{eq:Surface_min_simpl}
+   \left( \frac{y(x) \yp(x)}{\sqrt{1 + \ypsq(x)}}\right)^{'}  = \frac{(y^{'2} +yy^{''})(1+y^{'2}) - y y^{'2} y^{''}   }{ (1+ y^{'2})^{3/2}}
+ \end{equation}
+
+Moreover, since the bridge is symmetric relatively to the $Oyz$ plane, $y(\xc) = y(-\xc)$ and $y'(-\xc) = -y'(\xc)$, so that 
+~\eqref{eq:Surface_min} becomes:
+%%
+\begin{equation}
+\label{deltaAlg}
+\delta \Alg = %
+2 \pi  \left(  \int\limits_{-\xc}^{\xc} \frac{1 + \ypsq(x)-y(x) \ypp(x)}{(1 + \ypsq(x))^{3/2}} \delta y(x) \,\diff x + 2 \dfrac{y(\xc) \ y'(\xc) \ \delta y(\xc)}{\sqrt{1 + y'(\xc)^2}} \right) \\
+\end{equation}
+%where we have noted in (\ref{deltaAlg})  $ \delta y(\xc) =  \displaystyle{ \delta y(x) \vert_{ x=\xc} }$. 
+%
+%
+%Note a subtile but important point concerning the variations $ \delta (y(x_c)) $ and $ \displaystyle{ \delta y(x) \vert_{ x=\xc} }$ which are in general different, except when  $\delta  x_c = 0$ (i.e when $x_c$ is fixed) %that is the case here.  %
+%\medskip
+%
+It is important to notice that in  (\ref{deltaAlg}),  we have noted $ \delta y(\xc) =  \displaystyle{ \delta y(x) \vert_{ x=\xc} }$,  which is different, in the general case, from $ \delta (y(x_c)) $ as we will see in the next section. However, in the case of fixed boundaries $x_c$ considered here, corresponding to $\delta  x_c = 0$, we have 
+$ \delta y(\xc) =  \displaystyle{ \delta (y(x_c) ) } $ that will be noted more simply $\delta y_c $. 
+%
+\medskip
+Therefore,  from~\eqref{eq:Surface_plans_contact} and~\eqref{eq:ligne_plans_contact}, we have:
+%%
+\begin{equation}
+\delta \Asl =  4 \pi y(x_c)  \delta (y(x_c)) =  4 \pi y_c  \delta y_c
+\end{equation}
+%%
+and
+%%
+\begin{equation}
+\begin{matrix}
+\delta \Lslg =4 \pi  \delta (y(x_c)) =  4 \pi \delta y_c
+\end{matrix}
+\end{equation}
+%%
+Then, equation~\eqref{eq:energie_plan} finally reduces to:
+%%
+\begin{equation}
+\label{eq:minimisation_plan}
+\begin{array}{ccc}
+ \displaystyle{ 2\pi\int\limits_{-\xc}^{\xc}  } \left(- \Delta P  \ y(x)   +  \galg  \dfrac{1 + \ypsq(x)    -   y(x) \ypp(x)}{(1 + \ypsq(x))^{3/2}} \right) \delta y(x) \,\diff x  \\
+%\hspace*{-2 cm}
++   4\pi \yc \left(\galg \dfrac{\ypc}{\sqrt{1 + \ypsqc}}+\gasl - \gasg \pm \dfrac{\gaslg}{\yc} \right) \delta \yc  &=&  0 \, , \quad %
+\forall \, \delta \yx \in\mathcal{V},  %%(\delta \yx)(\xc)%% 
+\\
+\end{array}
+\end{equation}
+%%
+where $\mathcal{V}$  denotes the space of smooth admissible kinematically virtual displacements %
+%%
+and where we have noted $\ypc= y'(\xc)$. In the case  of fixed boundary considered here, we have  and  
+$
+W_{F_{\textrm{ext}/{\Omega_s}}}=0$.
+
+%%% ------------------------------------------ %%%
+%%
+%%%
+
+\subsection{Young-Laplace equation}
+
+Relation~\eqref{eq:minimisation_plan} must be true for all kinematically admisible virtual displacement $\delta y(x)$. %
+%%
+Firstly, we consider displacements $\delta\yx(x)$ preserving the bridge extremities, such as $\delta y (\xc)=\delta y (-\xc)=0$. %
+% Since displacements preserving the bridge extremities, in other words so that $\delta y (\xc)=\delta y (-\xc)=0$, %
+% must be considered,~\eqref{eq:minimisation_plan} entails particularily:
+We get from~\eqref{eq:minimisation_plan}
+
+\begin{equation}
+\label{eq:minimisation_plan_interior}
+2\pi \int\limits_{-\xc}^{\xc}   \left(- \Delta\,P  \ y(x) + \galg  \left( \frac{1 + \ypsq(x)   -   y(x) \ypp(x)}{(1 + \ypsq(x))^{3/2}} \right) \right) \delta y \,\diff x \   = 0 \ , \ \forall \delta\yx\in\mathcal{V} \ \text{such as} \ \delta\yx(\xc) = 0 \, ,
+\end{equation}
+%%
+which results in:
+%%
+\begin{equation}
+- \Delta\,P  \ y(x) + \galg  \left( \frac{1 + \ypsq(x)   -   y(x) \ypp(x)}{(1 + \ypsq(x))^{3/2}} \right) = 0 \quad \text{in the liquid domain} \ \Omega_{l} \, . \label{eq:minimisation_plan_interior_bis}
+\end{equation}
+%%
+Equation~\eqref{eq:minimisation_plan_interior_bis} may be rewritten as
+%%
+\begin{equation}
+\label{eq:YL_plan}
+% \boxed{%
+\dfrac{\ypp(x)}{(1 + \ypsq(x))^{3/2}} -  \dfrac{1}{y(x) \sqrt{1 + \ypsq(x))}}  = - \frac{\Delta\,P}{\galg} \,,%
+% }
+\end{equation}
+%%
+which corresponds to the classical Young-Laplace equation for a capillary bridge of revolution.
+
+%%% ------------------------------------------ %%%
+\subsection{Generalized Young equation}
+\label{sec:GYL}
+
+The superposition of~\eqref{eq:minimisation_plan} and~\eqref{eq:YL_plan} provides
+%%
+\begin{equation*}
+4\pi \yc    \left(  \galg  \frac{\ypc}{\sqrt{1 + \ypsqc}}
+  +    \gasl - \gasg    \pm  \frac{\gaslg}{\yc} \right) \delta \yc    = 0 
+\end{equation*}
+%%
+for all possible variations $\delta y_c$, %
+which results in
+%%
+\begin{equation}
+ \frac{y'_c}{\sqrt{1 + \ypsq(\xc)}}
+  +    \frac{\gasl - \gasg}{\galg}     \pm  \frac{\gaslg}{\yc \galg}  =0 \,.
+%%
+\label{eq:young_gen_sym_bridge_ypc}
+\end{equation}
+
+\bigskip
+Equation~\eqref{eq:young_gen_sym_bridge_ypc} is nothing else than a generalized Young equation. %can be seen that 
+Indeed, using boundary conditions~\eqref{eq:ypc_cot_theta_head_section_ii}--\eqref{eq:ypmc_cot_theta_head_section_ii} %
+(Figure~\ref{fig:truncated_bridge}), % on $\ypc$ can be written (see~\eqref{eq:ypc_cot_theta_head_section_ii}
+%%
+% \begin{equation}
+% y'(\xc)= \cot (\theta)  \quad  \text{and}  \quad y'(-\xc)= - \cot (\theta) \,.%
+% %%
+% \label{eq:ypc_cot_theta_sym_bridge_with_ymc}
+% \end{equation}
+% %%
+% Therefore %
+we have obviously:
+$$
+ \frac{y'_c}{\sqrt{1 + \ypsq(\xc)}}  = \cos \theta
+$$
+which provides the generalized Young equation:
+
+\begin{equation}
+\label{eq:Young_plan}
+% \boxed{
+\cos \theta  -  \frac{\gasg - \gasl}{\galg}  \pm\dfrac{\gaslg}{\galg\,\yc} =0 \, .%   \pm  \frac{\gaslg}{\yc \galg}  = 0
+% }
+\end{equation}
+
+%%% ------------------------------------------ %%%
+%%% Figure: pont, xc xl
+% \newpage
+
+%%% ------------------------------------------ %%%
+% \section*{Bridges and droplets}
+
+%%% ------------------------------------------ %%%
+%%% ------------------------------------------ %%%
+\section{Case of a capillary bridge with moving boundaries}\label{sec:nonsym_bridge}
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+%%% ------------------------------------------ %%%
+
+\subsection{Problem statement}
+
+Let us consider now the capillary bridge of section~\ref{sec:der_yylg_variations_symbridge} where the lower substrate is fixed and the upper one is moved with a force $\fextl$,  leading to a stretching 
+of the capillary bridge. %
+%%
+This results in different wetting areas $\yc$ and $\yl$, with a priori different contact angles $\contactanglec$ and $\contactanglel$, %
+and with no more symmetry with respect to the origin $O$ (Figure~\ref{fig:asym_bridge_xcl_plane}). %
+This more general case will be used to treat the case of a sessile drop in section~\ref{sec:droplet}, %
+as a limit case when the capillary bridge beaks and the associated capillary force vanishes. %
+%%% ------------------------------------------ %%%
+%%
+The gravity effects are still supposed to be negligible. %
+In order to keep the same formalism as in the previous section, $\xl$ will denote the abscissa of the upper solid substrate which is now free to move. %%%(Fig \ref{drop_geometry}).
+
+\begin{figure}[h!]
+
+\centering
+% \includegraphics[width=0.9\linewidth]{figures_article/bridge_and_drop.pdf}
+% \includegraphics[width=0.3\linewidth]{figures_article/asym_bridge_capil.pdf}
+\includegraphics[width=0.4\linewidth]{figures_article/asym_bridge_xcl_plane.pdf}
+%%
+\caption{Nonsymmetric bridge with moving upper substrate.}
+\label{fig:asym_bridge_xcl_plane}
+\end{figure}
+
+The $x-$ coordinate belongs to the interval $]\xl,\,\xc[$ for some $\xl<\xc$. %
+The new geometrical characterisitics of the capillary bridge stand:
+%%
+\begin{itemize}
+% \begin{enumerate}
+%%
+\item Liquid bridge volume: %
+%%
+\begin{equation}
+\label{eq:vol_tot_bridge_2pl}
+V = \int\limits_{x_{c1}}^{x_{c2}} \pi y(x)^2 \,\diff x \, ;
+\end{equation}
+%%
+\item Liquid-gas surface:
+%%
+\begin{equation}
+\label{eq:Surface_entre_deux plans}
+\Alg = \int\limits_{x_{c1}}^{x_{c2}} 2 \pi y(x) \sqrt{1+\ypsq} \,\diff x \, ;
+\end{equationS
+
+
+%%
+\item Solid-liquid surface:%, from both extremities:
+%%
+\begin{equation}
+\label{eq:Surface_plans_contact}
+\Asl =  2\pi ( y^2(x_c_1 ) + y^2(x_c_2 ) )\, ;
+\end{equation}
+%%
+% \newcounter{stock}
+% \setcounter{stock}{\value{enumi}}
+% \end{enumerate}
+\end{itemize}
+
+
+%%% ------------------------------------------ %%%
+\subsection{Energy minimization}
+
+As previously, we calculate the first variation of the energy under a virtual displacement $\delta y(x)$ of the liquid and its value $\delta\yc$ and $\delta\yl$ at the contact line, and of the upper substrate $\delta\xl$. %
+%%
+In that case, with an imposed force $\fextl$ on the upper substrate, %
+the minimization of the energy of the system  may be deduced from~\eqref{eq:energie_plan} and leads to:
+%%
+\begin{equation}
+\begin{split}
+\label{eq:energie_plan}  
+& \gamma_{lg1} \delta A_{lg} + \gamma_{lg2} \delta A_{lg} + (\gamma_{sl1} - \gamma_{sg1}) \delta A_{sl} \\
+& + (\gamma_{sl2} - \gamma_{sg2}) \delta A_{sl} \pm \gamma_{slg1} \delta A_{slg1} \\
+& \pm \gamma_{slg2} \delta A_{slg} - \Delta P \delta V - W_{F_{\textrm{ext}/\Omega_s}} = 0
+\end{split}
+\end{equation}
+%%
+In that case, we have%
+\footnote{Note that in the case of moving boundaries %
+$%
+\displaystyle 
+\delta\int\limits_{\xinf}^{\xsup}\,f(x)\,\diff x = %
+\int\limits_{\xinf}^{\xsup}\,(\delta f)(x)\,\diff x + f(\xsup)\delta\xsup - f(\xinf)\delta\xinf
+$.}%, see~\ref{ann:proof_int_dyx_dx}.}
+:
+%%
+\begin{equation}
+\begin{split}
+\delta V &= \delta \int\limits_{x_{c1}}^{x_{c2}} \left( \pi y(x)^2 \right) \, dx \\
+&= 2\pi \left( \int\limits_{x_{c1}}^{x_{c2}} y(x) \delta y(x) \, dx - \frac{y_{c1}^2}{2} \delta x_{c1} - \frac{y_{c2}^2}{2} \delta x_{c2} \right)
+\end{split}
+\end{equation}
+
+%%
+Furthermore we have (like in~\eqref{eq:Surface_min}):%, we have:
+~%
+\begin{equation*}
+\begin{split}
+\delta \Alg = & 2 \pi \int\limits_{\xc_1}^{\xc_2}  \left[  \sqrt{1+\ypsq(x)}\,\delta y(x) +\frac{y(x)\,\yp(x)}{\sqrt{1 + \ypsq(x)}} \delta \yp(x) \right] \, \diff x \\
+& - 2 \pi y(\xc_1) \sqrt{1 + \ypsq(\xc_1)} \delta \xc_1 - 2 \pi y(\xc_2) \sqrt{1 + \ypsq(\xc_2)} \delta \xc_2
+\end{split}
+\end{equation*}
+%%
+As previously, an integration by parts leads to:
+%%
+\begin{equation}
+\begin{split}
+\delta \Alg = 2 \pi  \ &\left( %
+\int\limits_{\xc_1}^{\xc_2} \frac{1 + \ypsq(x)   -   y(x) \ypp(x)}{(1 + \ypsq(x))^{3/2}} \delta y(x) \,\diff x \right.%
+% \\
+% &-%+
+- %
+\yl \sqrt{1 + \ypsql} \delta \xl %
+\\
+&+
+\left.\dfrac{\yc\ypc}{\sqrt{1+\ypsqc}}\, \delta y_c - \dfrac{\yl\ypl}{\sqrt{1+\ypsql}} \  \delta y_l \right) %
+\\
+\end{split}
+\end{equation}
+%%
+where we have noted $\yl=\yx(\xl)$, and  $\ypl=\yp(\xl)$ and  $ \delta y_l =  \displaystyle{ \delta y(x) \vert_{ x=\xl} }$.
+
+\bigskip
+The calculus of the variation of $\Asl$ and $\Lslg$ involving $\yl=\yx(\xl)$ is a little bit more subtle as $\xl$ is varying ($\xc$ is still fixed). %
+We have%
+\footnote{%
+%%% ------------------------------------------ %%%
+When the boundary $\xl$ of the abscissa domain varies, the total variation of $\yl$ is influenced, in the one hand, by the variation of $y(x)$ at the boundary at equilibrium (noted  $ \delta y_l $), and on the other hand by the variation $\delta\xl$ of the boundary itself. 
+In the latter case, the derivative of the meridian at equilibrium also intervenes, according to a total differntiation rule. %
+See \ref{ann:proof_int_dyx_dx} for more details.%
+}%
+:
+%%
+\begin{equation}
+\label{eq:delta_yl_tot}
+\delta\big(y(\xc_1)\big) = \displaystyle{ \delta y(x) \vert_{ x=\xc_1} }  +\yp(x_l)\,\delta\xl 
+\end{equation}
+that will be noted more simply 
+%
+\begin{equation}
+\delta\big(y(\xc_1)\big) = \delta y_c_1+ \yp_c_1\,\delta\xc_1\,.
+\label{eq:delta_yl_tot2}
+\end{equation}
+%%
+It entails:
+
+\begin{itemize}
+\item $\delta \Asl =  2 \pi \yc \delta \yc + 2 \pi \yl \delta \yl %+ 2\pi \yc \ypc \delta\xc 
++ 2\pi \yl \ypl \delta\xl $ ;
+\item $\delta \Lslg = 2 \pi \delta \yc + 2 \pi \delta \yl %+ 2\pi \ypc \delta\xc 
++ 2\pi \ypl \delta\xl$.
+\end{itemize}
+
+\bigskip
+The total variation of the energy~\eqref{eq:nonsym_bridge_energy_ell} then leads to%
+\footnote{%
+We have noted here $\fextl = \fscalextl \vec{e}_x$ and $\bm{\delta}\mathbf{\xl} = \delta\xl \vec{e}_x$ %
+so that $\fextl\cdot\bm{\delta}\mathbf{\xl} = \fscalextl   \delta\xl$ where $\vec{e}_x$ denotes the unit vector along $x$-axis.%
+}%
+:
+%%
+\begin{equation}
+\label{eq:bridgedrop_energy_minimization}
+\begin{split}
+&= 2\pi\int\limits_{\xc_1}^{\xc_2} \left(- \Delta P \, y(x) + (\galg_1 + \galg_2) \left( \dfrac{1 + \ypsq(x) - y(x) \, \ypp(x)}{(1 + \ypsq(x))^{3/2}} \right) \right) \delta y(x) \, \mathrm{d}x \\
+&+ 2\pi\yc_2 \left( (\galg_1 + \galg_2) \dfrac{\ypc}{\sqrt{1 + \ypsqc}} + (\gasl_1 - \gasg_1) + (\gasl_2 - \gasg_2) \pm \dfrac{\gaslg_1}{\yc_2} \pm \dfrac{\gaslg_2}{\yc_2} \right) \delta \yc_2 \\
+&- 2\pi\yc_1 \left( (\galg_1 + \galg_2) {y'}_{c1}{\sqrt{1 + {y'}_{c1}}} - (\gasl - \gasg) \mp \dfrac{\gaslg}{\yc_1} \right) \delta \yc_1 \\
+&- 2\pi\left( \frac{-\Delta P}{2} \, \yc_1^2 + \galg \, \sqrt{1 + {y'}_{c1}} \, \yc_1 + (\gasl - \gasg) \, \ypc \, \yc \pm \gaslg \, \ypc \right) \, \delta \xc_2 \\
+&- 2\pi\left( \frac{-\Delta P}{2} \, \yc_1^2 + (\galg_1 + \galg_2) \, \sqrt{1 + {y'}_{c1}^2} \, \yc_1 - [(\gasl_1 - \gasg_1) + (\gasl_1 - \gasg_1)] \, \ypc_1 \, \yc_2 \\ &+ \mp (\gaslg_1 + \gaslg_1) \, {y'}_{c1} \pm \\
+&+ \dfrac{\fscalextl}{2\pi} \right) \, \delta \xc_1 = 0 \, .
+\end{split}
+\end{equation}
+
+%%
+% where $\yc$=$y(\xc)$, $\yl$=$y(\xl)$, $\ypc$=$y'(\xc)$ and $\ypl$=$y'(\xl)$.
+
+% \Floatbarrier
+
+%%% ------------------------------------------ %%%
+% \medskip
+
+
+Note that the associated boundaries conditions write in this case:
+%
+%(like in~\eqref{eq:ypc_cot_theta_head_section_ii}:
+%%
+\begin{equation}
+\ypc=\cot\contactanglec \,.
+%%
+\label{eq:ypl_contactanglec2}
+\end{equation}
+%
+\begin{equation}
+\ypl=-\cot\contactanglel \,.
+%%
+\label{eq:ypl_contactanglel}
+\end{equation}
+%
+%
+Therefore we have: 
+%%
+\begin{equation}
+% \boxed{%
+\frac{\ypl}{\sqrt{1+\ypsql} }=- {\cos(\contactanglel)}
+\quad\text{and}\quad %
+\frac{\ypc}{\sqrt{1+\ypsqc} }= {\cos(\contactanglec)}\,.
+% }
+% \quad\text{and}\quad %
+% 
+%%
+\label{eq:ypsql_contactanglel}
+\end{equation}
+
+%%% ------------------------------------------ %%%
+\subsection{Associated equlibrium equations}
+
+We will consider here in the calculus of variation that %
+$\delta y$, $\delta \yc$, $\delta \yl$ %, $\delta\xc$ 
+and $\delta \xl$ are independent and can vary independently from each other. %
+They adjust at the equilibrium with respect to the prescribed pressure. %
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+% \begin{equation}
+% 
+% %
+% \label{eq:}
+% \end{equation}
+
+Therefore, as  in section~\ref{sec:der_yylg_variations_symbridge}, a relevant choice of virtual displacements around equilibrium configurations %
+enables to recover the associated equilibrium equations and boundary conditions. %
+%%
+First of all, choosing $\delta\yx(x)$ with $\delta\yc=\delta\yl=0$ and $\delta\xl=0$ (fixed upper substrate), %
+leads to the same Young-Laplace equation as in~\eqref{eq:YL_plan}. \\%
+%%
+Then, choosing $\delta\yc$ free with $\delta\yl=0$ and $\delta\xl=0$, using boundary condition (\ref{eq:ypl_contactanglec2}), we obtain  from (\ref{eq:bridgedrop_energy_minimization})
+the same  generalized Young equation on the wetted lower surface similar to~\eqref{eq:Young_plan}:
+%
+\begin{equation}
+\cos\contactanglec - \dfrac{\gasg-\gasl}{\galg} \pm \dfrac{\gaslg}{\galg\yc} = 0 \,. \label{eq:generalized_young_c_bis}
+%%
+% \label{eq:}
+\end{equation}
+%%
+Now, choosing only $\delta\yl$ free, using boundary condition (\ref{eq:ypl_contactanglel}), we obtain from (\ref{eq:bridgedrop_energy_minimization}) a similar generalized Young equation:
+%%
+%\begin{equation}
+%\galg  \dfrac{\ypl}{\sqrt{1 + \ypsql}} - (\gasl - \gasg)  \mp  \dfrac{ \gaslg}{\yl} \,.
+%%
+%\label{eq:}
+%\end{equation}
+%%
+%Using the boundary condition~\eqref{eq:ypl_contactanglel},  %--\eqref{eq:ypsql_contactanglel}, %
+%we obtain a similar generlalized Young equation for the wetted upper surface:
+%%
+\begin{equation}
+\cos\contactanglel - \dfrac{\gasg-\gasl}{\galg} \pm \dfrac{\gaslg}{\galg\yl} = 0 \,.
+%%
+\label{eq:generalized_young_l}
+\end{equation}
+
+Note that we have assumed here that the triple line energy $\gaslg$ is the same if the upper and lower substrates are constituted of the same material. %
+If not, we should consider two different values. %
+Of course, this is also the case for the solid surface tensions $\gasl$ and $\gasg$.
+
+
+\subsection{General expression of the associated capillary force }
+The last term in~\eqref{eq:bridgedrop_energy_minimization} enables to obtain a relevant %definition of the capillary force at equilibrium. %
+supplementary equation. %
+Indeed, equation~\eqref{eq:bridgedrop_energy_minimization} now reduces to:
+%%
+\begin{equation}
+2\pi%\yl %
+\left( %
+\frac{-\Delta P}{2} \, \yl^2 + \galg \ \sqrt{1 + \ypsql} \ \yl - (\gasl - \gasg)\,\ypl\yl \mp \gaslg \,\ypl %
++ \frac{\fscalextl}{2\pi} %
+\right) \ \delta \xl
+= 0 \,,%
+%%
+\label{eq:variation_xl_bridge_with_capillary_force}
+\end{equation}
+%%
+equivalently by using boundary conditions~\eqref{eq:ypl_contactanglel}, we get :
+%%
+\begin{equation}
+2\pi\galg \yl\left(%
+\frac{-\Delta P}{2\galg} \, \yl + \dfrac{1}{\sin\contactanglel} + \dfrac{\gasl - \gasg}{\galg}\,\cot\contactanglel \pm \dfrac{\gaslg}{\galg\,\yl} \,\cot\contactanglel \right)%
++ \fscalextl %
+= 0\,.
+%%
+\label{eq:capillary_force_full_related_yl_cot}
+\end{equation}
+%%
+Using~\eqref{eq:generalized_young_l}, Eq.\eqref{eq:capillary_force_full_related_yl_cot} reduces to
+%%
+\begin{equation}
+2\pi\galg\yl\left(%
+\frac{-\Delta P}{2\galg} \, \yl + \dfrac{1}{\sin\contactanglel} - \cot\contactanglel\cos\contactanglel \right) + \fscalextl = 0
+%%
+\label{eq:capillary_force_combined_to_youg}
+\end{equation}
+%%
+or equivalently to:
+% Finally, expression~\eqref{eq:capillary_force_combined_to_youg} reduces to
+%%
+\begin{equation}
+2\pi\galg\yl\left(%
+% \boxed{%
+\frac{-\Delta P}{2\galg} \, \yl + \sin\contactanglel  \right)   + \fscalextl  = 0\,. %
+% }
+%%
+\label{eq:full_variation_at_l_with_caillary_force}
+\end{equation}
+%%
+The latter relation provides an expresion of $\fscalextl$ at the equilibrium %
+when $\yl\neq 0$ i.e as long as there is a contact between the liquid and the upper surface:
+
+\begin{equation}
+% \boxed{%
+\fscalextl = (\Delta P)\,\pi\yl^2 - 2\pi\yl\,\galg\,\sin\contactanglel \,. %
+% }
+%%
+\label{eq:explicit_fcapil_ell}
+\end{equation}
+
+It is important to quote that expression~\eqref{eq:explicit_fcapil_ell} leads to a general expression of the normal capillary force %
+resulting on the upper substrate. %
+Indeed, at equilibrium, the capillary force $\fcap$ exerted by the liquid on the substrate equilibrates the opposite of $\fextl$ exerted on the upper substrate. %
+Therefore, we obtain the general expression of the normal capillary forces at the contact line\footnote{Eq. (\ref{eq:variation_xl_bridge_with_capillary_force}) does not allow to access to the tangential component of the capillary force. }:
+
+\begin{equation}
+\fcapn = -\Delta P\,\pi\yl^2 + 2\pi\yl\,\galg\,\sin\contactanglel \,.
+%%
+\label{eq:fcap_asym_bridge_xl}
+\end{equation}
+%%
+It is also important to quote that this expression is equivalent to the one given in~\cite{theo_Millet-Gagneux-2014} %% Gagneux Millet 2014
+resulting from a first integral of Young-Laplace equation:
+
+\begin{equation}
+\fcapn = 2\pi\galg\left(\dfrac{\yx(x)}{\sqrt{1+\ypsq(x)}} + \dfrac{H\,\yx^2(x)}{2}\right) %
+%%
+\label{eq:fcap_H_yl}
+\end{equation}
+%%
+with $H=\dfrac{-\Delta P}{\galg}$. Indeed,~\eqref{eq:fcap_H_yl} may be calculated at any point $(x,y(x))$ of the meridian and in particular at the contact line at $(\xl,\,\yl)$. %
+We then recover expression~\eqref{eq:fcap_asym_bridge_xl} of $\fcapn$. %
+%%
+The capillary force is generally expressed at the gorge 
+ $y^{\ast}$,  corresponding to the minimum value of the meridian $\yx(x)$ at $x^{\ast}$ such as $\yp(x^{\ast})=0$, leading to the ``gorge method ''~\cite{theo_Millet-Gagneux-2014, suctionCtrl_Gras_13, gras:tel-00821687, LIAN1993138}:
+
+\begin{equation}
+\fscalcap^* = \pi\galg H {y^{\ast}}^2 + 2\pi\galg\,y^{\ast}  =  - \Delta P \pi {y^{\ast}}^2 + 2\pi\galg\,y^{\ast}  
+%%
+\label{eq:fcap_gorge_method}
+\end{equation}
+%%
+Of course both ewpressions give the same result. %
+However, it may be sometimes more relevant to calculate $\fcapn$ using using given data at the contact line through~\eqref{eq:fcap_asym_bridge_xl}. %
+%%
+
+
+
+%%% ------------------------------------------ %%%
+\section{Conclusions}\label{sec:conclusion}
+
+In this work, we proposed a general framework to deduce both Young-Laplace and Young equations for an axisymmetrical capillary doublet %
+from the minimization of total energy of the system. %
+Young equation naturally appears as a boundary condition associated to Young-Laplace equation. %
+%%
+A supplementary term, linked to a contact line energy is added in the whole energy of the system and enabled to obtain a generalized Young equation modelling the hysteresis of contact angle, %
+observed experimentally (advancing/receding contact angles). %
+%%
+Moreover, this approach leads to a general expression of the associated capillary force expressed at the contact line. %
+This expression of the capillary force, \textcolor{red}{which is not influenced by the line energy, } corresponds to those obtained from the first integral of Young-Laplace equation and is equivalent to the classical %
+``gorge method''. %%Gras 2011, Lian 1993.
+However, it may be more convenient to compute it at the contact line. %
+%%
+The case of a sessile drop is treated with the same approach as a limit case of %
+a \emph{just broken} capillary bridge between two parallel plates. %
+%%
+A generalized Young equation containing a line energy contribution is obtained as well.
+
+% In this work, a unified method has been exposed in order to establich, rigorously, %
+% the Young-Laplace and Young equations in three cases: %
+% an axisymmetric, symmetric with respect to its median plane, capillary bridge between two solid and plane substrates, a droplet on a solid plane surface, %
+% and an intermediate case of bridge whose contact surface at one of the substrates vanishes. %
+% %%
+% Although it is exposed in the case of negligible gravity effects, the method is general enough to include a triple line effect, %
+% which is responsible of a contact angle hysteresis. %
+% %%
+% Experimental validation of the general Young equation could be conducted in these cases of capillary bridges or droplets with planar solid substrate. %
+% Perspectives of this work include its generalization of more complex geometries of the substrates, %
+% and studying the droplets or bridges stability by computing second variations of the energy.
+
+%%% -------------------------------------------------------------------------- %%%
+%%% -------------------------------------------------------------------------- %%%
+
+\medskip
+{\bf Remerciements :} The authors would like to express their sincere thanks to the CNES for having supported this work.
+
+
+%%% ------------------------------------------ %%%
+
+\bibliographystyle{plain}
+\bibliography{biblio_articles}
+
+%%% ------------------------------------------ %%%
+%%% ------------------------------------------ %%%
+\newpage
+\appendix
+
+\section{Proof of variational calculus identity}\label{ann:proof_int_dyx_dx}
+
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+% \begin{equation}
+% 
+% %%
+% \label{eq:}
+% \end{equation}
+
+%%% ------------------------------------------ %%%
+
+% \begin{proposition}
+% \begin{equation}
+% \delta\left(\int\limits_{\xinf}^{\xsup}\,f(x)\,\diff x\right) = \int\limits_{\xinf}^{\xsup}\,\delta(f)(x)\,\diff x %
+% + f(\xsup)\,\delta\xsup %
+% - f(\xinf)\,\delta\xinf \,.%
+% %%
+% \label{eq:prop_int_dxc}
+% \end{equation}
+% \end{proposition}
+
+%%% ------------------------------------------ %%%
+
+In this appendix, we give a mathematical proof of relation~\eqref{eq:delta_yl_tot}
+\begin{equation}
+\delta\big(y(\xl)\big) = \delta \yx (\xl) + \yp(\xl)\,\delta\xl\,.
+\label{eq:delta_yl_tot_recall}
+\end{equation}
+or equivalently:
+%
+\begin{equation}
+\delta\big(y(\xl)\big) = \delta \yl + \ypl \,\delta\xl\,.
+\label{eq:delta_yl_tot_recall}
+\end{equation}
+
+
+
+%%
+By definition, the abscissa $x_{\varepsilon}$ and the meridian $y_{\varepsilon}$ of a perturbated capillary bridge write, at any abscissa $x$ of the reference configuration:
+%%
+% \begin{equation}
+% x_{\varepsilon} = X(x,\, \varepsilon)
+% \quad\text{and}\quad %
+% y_{\varepsilon}(x_{\varepsilon}) = Y(x_{\varepsilon},\,\varepsilon) = Y(X(x,\,\varepsilon),\,\varepsilon)
+% %
+% \label{eq:}
+% \end{equation}
+\begin{align}
+x_{\varepsilon} &= X(x,\, \varepsilon) \label{eq:}
+\\
+y_{\varepsilon}(x_{\varepsilon}) &= Y(x_{\varepsilon},\,\varepsilon) \label{eq:}
+\end{align}
+%%
+where $X$ and $Y$ are two smooth functions which depend notably on the perturbation parameter $\varepsilon$. %
+%%
+The Taylor development of functions  $X(x,\, \varepsilon)$  and $Y(x_{\varepsilon},\,\varepsilon)$ in the vicinity of $\varepsilon=0$ leads to:
+%%
+\begin{align}
+x_{\varepsilon} &\simeq x + \varepsilon\delta x \label{eq:}
+\\
+y_{\varepsilon}(x_{\varepsilon}) &\simeq y(x) + \varepsilon \delta(\yx(x)) \,, \label{eq:}
+\end{align}
+%%
+where by definition
+%%
+% \begin{align}
+% \delta x &= \left.\der{x_{\varepsilon}}{\varepsilon}\right|_{\varepsilon=0} \label{eq:}
+% \\
+% \delta\yx(x) &= \left.\der{\yx_{\varepsilon}(x_{\varepsilon})}{\varepsilon}\right|_{\varepsilon=0} \,. \label{eq:}
+% \end{align}
+\begin{equation}
+\delta x = \left.\der{x_{\varepsilon}}{\varepsilon}\right|_{\varepsilon=0} %
+\quad\text{and}\quad
+\delta (\yx(x)) = \left.\der{\yx_{\varepsilon}(x_{\varepsilon})}{\varepsilon}\right|_{\varepsilon=0} \,.
+%
+%\delta (\yx(x)) = \left.\der{}{\varepsilon}Y(X(x,\, \varepsilon),\,\varepsilon) \right|_{\varepsilon=0} \,.
+%%
+\label{eq:}
+\end{equation}
+%%
+The total differentiation and the chain rules state that
+%%
+\begin{equation}
+% \left.\der{\yx_{\varepsilon}(x_{\varepsilon})}{\varepsilon}\right|_{\varepsilon=0} = %
+\left.\der{\yx_{\varepsilon}(x_{\varepsilon})}{\varepsilon}\right|_{\varepsilon=0} = \left.\der{}{\varepsilon}\,Y(X(x,\, \varepsilon),\,\varepsilon) \right|_{\varepsilon=0}= %
+% \left.\der{\yx_{\varepsilon}(x)}{\varepsilon}\right|_{\varepsilon=0} + \yp(x)\,\left.\der{x_{\varepsilon}}{\varepsilon}\right|_{\varepsilon=0} \,,
+\left.\derp{}{\varepsilon}\,Y(X(x,\, 0),\,\varepsilon)\right|_{\varepsilon=0} + %x_{\varepsilon=0}
+\left.\derp{Y}{X}\right|_{X=x}\,\left.\derp{X(x,\, \varepsilon)}{\varepsilon}\right|_{\varepsilon=0} \,,
+%
+%%
+\label{eq:}
+\end{equation}
+%%
+or equivalently:
+%%
+\begin{equation}
+\left.\der{\yx_{\varepsilon}(x_{\varepsilon})}{\varepsilon}\right|_{\varepsilon=0} = %
+\left.\der{\yx_{\varepsilon}(x)}{\varepsilon}\right|_{\varepsilon=0} + \yp(x)\,\left.\der{x_{\varepsilon}}{\varepsilon}\right|_{\varepsilon=0} .
+%%
+\label{eq:}
+\end{equation}
+%%
+In other words
+%%
+\begin{equation}
+\delta(\yx(x)) = \dyxfix (x) + \yp(x)\,\delta x \,.
+%%
+\label{eq:delta_yx_tot}
+\end{equation}
+%%
+where %
+% $\dyxfix (x) = \left.\der{\yx_{\varepsilon}(x)}{\varepsilon}\right|_{\varepsilon=0} = %
+% \left.\derp{}{\varepsilon}Y(X(x,\,\varepsilon),\,\varepsilon)\right|_{\varepsilon=0}$ %
+\begin{equation}
+\dyxfix (x) = %
+\left.\der{\yx_{\varepsilon}(x)}{\varepsilon}\right|_{\varepsilon=0} = %
+\left.\derp{}{\varepsilon}\right|_{\varepsilon=0}Y(X(x,\,0),\,\varepsilon)
+%%
+\label{eq:}
+\end{equation}
+%%
+represents the variation of the meridian for a fixed value%
+\footnote{As virtual displacements $\dyxfix (x)$ and $\delta x$ are independent.} %
+of $x$. %
+
+\par
+When $x=\xl$, equation~\eqref{eq:delta_yx_tot} results in~\eqref{eq:delta_yl_tot_recall}.
+%%
+For a mathematical treatement of variational calculus see~\cite{CH_MphyM_1950}. %
+
+% 
+% The following lemma
+
+%%% ------------------------------------------ %%%
+% \section{Comparaison with les calculs de Marc sur les gouttes}
+% 
+% Moyennant la correspondance de tes notations with le calculs 2 with l'origine \g{a} l'apex :
+% $$
+% r(z) \rightarrow y(x) , \quad  r(h) \rightarrow \yc, \quad  h \rightarrow  \xc,  \quad \delta r(z) \rightarrow \delta y(x) , \quad \delta  r(h) \rightarrow \delta \yc, \quad  \delta h \rightarrow  \delta  \xc,  etc..
+%  $$
+% 
+%  on obtient la m\^eme chose SAUF pour la variation de $\delta r^2(h) $ qui pour moi correspond \g{a} $\delta y^2_c = 2 \yc \delta \yc $ sans le terme compl\'ementaire
+%  $\ypc \delta \xc$. Pour moi, tu fais un calcul de variation au second ordre (th\'eorie des jets) qui n'est pas n\'ecessaire.
+%  Si je te suis, que l'on consid\g{e}re que $\delta r(z) = \delta y(x) $  n'est pas ind\'ependant de $\delta r(h) = \delta \yc $, et que l'on regarde seulement l'\'equation  qui provient de $\delta h = \delta \xc$ dont la variation est ind\'ependante, on obtiendrait l'\'equation (\ref{eq:compl_drop2}) with 2 termes suppl\'ementaires en $r'(h)= \ypc$ (au signe devant $\delta P$ pr\g{e}s \g{a} v\'erifier)  :
+% 
+% 
+% \begin{equation}
+% \label{eq:eq:compl_drop4}
+% \pm \frac{\Delta P}{2 \galg}  \yc^{2} + \sqrt{1 + \yc^{'2}}\ \yc   - {\cal S} \yc \ypc   \pm \frac{\gaslg}{\galg} \delta \ypc = 0
+% \end{equation}
+% 
+% Du  coup, on ne peut plus conclure que la forme de la goutte est sph\'erique. A mon avis, ton calcul de variation rajoute des termes du second ordre qui sont n\'egligeables sauf peut-\^etre si l'\'energie de ligne est importante... A discuter...
+% 
+% %%% ------------------------------------------ %%%
+% \section{Minimisation de l'\'energie de la goutte \g{a} volume impos\'e}
+% 
+% \subsection{Energie de la goutte \g{a} volume impos\'e}
+% Expliquer un peu la diff\'erence with le cas \g{a} pression impos\'ee  ... \\
+% 
+% Dans le cas d'une goutte \g{a} volume impos\'e, l'\'energie totale s'\'ecrit comme suit de fa\c con classique (expliquer la diff\'erence et citer des refs.) en introduisant un multiplicateur de Lagrange $\lambda$ traduisant la condition de volume impos\'e $V_0$:
+% \begin{equation}
+% \label{eq:Energie2-vol}
+% E =   \galg  \Alg \ + (\gasl - \gasg)  \Asl  \  \pm \gaslg \Lslg  +\lambda (V-V_0)
+% \end{equation}
+% 
+% %%% ------------------------------------------ %%%
+% On reprend les m\^emes calculs with l'un ou l'autre des param\'etrages (plutôt le second) en consid\'erant l'\'energie :
+%  \begin{equation}
+% \label{eq:Energie2-vol2}
+% E =   \galg  \Alg \ + (\gasl - \gasg)  \Asl  \  \pm \gaslg \Lslg  +\lambda (V-V_0)
+% \end{equation}
+% with le multiplicateur de Lagrange $\lambda$ traduisant la condition de volume impos\'e $V_0$.
+% Les calculs se recopient with $\lambda$ \g{a} la place de $- \Delta P$ et les conclusions sont les m\^emes.
+
+
+
+%%% ------------------------------------------ %%%
+
+
+\end{document}

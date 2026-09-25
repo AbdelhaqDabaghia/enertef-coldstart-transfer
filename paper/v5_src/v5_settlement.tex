@@ -1,0 +1,123 @@
+% ============================================================================
+% v5 Section V -- the settlement methodology.
+%
+% This is the section Table~\ref{tab:defects} points at throughout. Without it
+% the defect table is a list of anecdotes; with it, each row has a measurement
+% behind it.
+%
+% Every figure here is from Data/results/e18_mpc_two_sites.csv (21 days, real
+% ENTSO-E prices) or from the deployment record, and each is recomputed in the
+% commit that introduced it.
+% ============================================================================
+
+\section{Settling a controller's economics}
+\label{sec:settle}
+
+A forecast-driven controller is almost always reported through one number: the
+saving it expects to make. That number is produced by subtracting the cost of
+an optimised schedule from the cost of an unmanaged one. The subtraction is
+sound; what varies, and what is rarely stated, is which demand each term is
+evaluated against.
+
+We distinguish three quantities. They are computed from the same plan
+$u^{\star}$ and differ only in what they are settled against, and the
+differences between them are the subject of this section.
+
+\subsection{Three quantities, one plan}
+
+\paragraph{Planned savings.} The optimiser's own estimate: both the baseline
+and the optimised cost are evaluated on the \emph{forecast} demand
+$\hat{y}$. Nothing in the arithmetic touches a meter, and no property of the
+physical site can change the result. A controller whose setpoints never leave
+the process, whose price feed has frozen, or whose forecaster is served
+features it was not trained on produces this number exactly as a working one
+does.
+
+\paragraph{Counterfactual savings.} The plan $u^{\star}$, decided on the
+forecast, settled against the demand $y$ that actually arrived---but on a site
+where that plan was never dispatched. This is an honest estimate of what the
+controller would have banked, and it is what most offline evaluations
+implicitly report. It is not a measurement of the site.
+
+\paragraph{Settled savings.} The plan was dispatched, the setpoints were
+accepted by the chargers, and the resulting consumption is settled against
+metered demand and the day-ahead price that applied. This is the only one of
+the three the site can bank.
+
+The distinction is not pedantic. Over 21 days of the deployed configuration
+under real ENTSO-E day-ahead prices, planned savings average
+$+9.55$~EUR/day, or $11.5\%$ of the unmanaged bill. Settling the same plans
+against metered demand gives $+7.86$~EUR/day on a larger realised bill:
+$6.0\%$. The relative figure is thus overstated by nearly a factor of two,
+and the absolute one by $1.69$~EUR/day.\footnote{The discrepancy in the
+baseline itself---$82.89$ planned against $130.52$ settled---is the forecaster
+under-predicting demand, and is the same defect quantified in
+Table~\ref{tab:defects}.} Under the synthetic price curve the notebook
+originally used, the same plans report $63.9\%$ planned against $38.6\%$
+settled; price realism and settlement are independent sources of overstatement
+and both apply.
+
+\subsection{When the record can be trusted}
+\label{sec:boundary}
+
+Settlement requires knowing which setpoints were actually commanded. That is a
+question about the control database, not about the controller, and the two
+became answerable at different moments.
+
+At this site the first successful publish to the chargers occurred at
+\texttt{06:19:31~UTC}. From that instant the controller was acting on the
+physical plant. But the database could not yet say so: the schema recorded one
+status for the whole cycle rather than one per charger, so rows written before
+\texttt{06:33:52~UTC}---when the revision carrying per-charger actuation
+status was deployed---carry \texttt{pending} even for setpoints that were
+dispatched and accepted.
+
+Settlement therefore keys on \texttt{06:33:52}, not on \texttt{06:19:31}. The
+later timestamp is not when control began; it is when the \emph{record} of
+control became reliable, and that is the property a settlement query depends
+on. Admitting the earlier window would settle genuinely dispatched steps as
+$u=0$, understating the controller rather than overstating it---the safer
+direction, but wrong, and wrong silently.
+
+Both instants are retained and reported, because they answer different
+questions. \texttt{06:19:31} is when the site began being controlled and is
+the correct marker for any display of controller activity.
+\texttt{06:33:52} is when settlement may begin. Conflating them, in either
+direction, produces a figure that cannot be reproduced from the database.
+
+\subsection{What settlement requires of the system}
+
+Stating the three quantities is easy; producing the third is not. Settled
+savings can only be computed where four things hold simultaneously, and each
+was absent at this site at some point during the study:
+
+\begin{enumerate}
+\item \textbf{The setpoints reached the plant}, and the system recorded that
+they did---rather than recording that they were computed.
+\item \textbf{The price applied was the price billed.} A constant fallback
+makes an energy-conserving shift worthless by construction, so a settled figure
+computed over such a period is exactly zero regardless of the controller.
+\item \textbf{The metered demand is present and fresh} for the settled period,
+with any imputed value marked as imputed rather than returned as data.
+\item \textbf{The settlement boundary is known}, as in
+Section~\ref{sec:boundary}, so that the period settled is the period the
+database can speak about.
+\end{enumerate}
+
+Each of these is a precondition that the reported-savings figure does not
+have. That asymmetry is the practical argument of this paper: the number these
+systems are judged by is the one that survives every failure, and the number
+that would have caught those failures is the one nobody computes.
+
+\subsection{Prospective protocol}
+
+Because every settled figure in this paper is necessarily retrospective, and
+because retrospective analysis of one's own deployment invites the objection
+that the hypotheses were formed after the data was seen, the settlement window
+reported in Section~\ref{sec:results} was pre-registered: the metrics, the
+number of days, and the acceptance criterion were fixed and committed before
+the first settleable day.\footnote{\texttt{PREREGISTRATION\_prospective.md} in
+the accompanying repository, committed before the window opened.} The window
+begins at the first cycle for which all four preconditions above hold
+simultaneously, which at this site is \texttt{2026-09-22 06:04~UTC}---not the
+date control began, and not the date the system was declared operational.
