@@ -31,7 +31,8 @@
 
 \begin{document}
 
-\title{An Autonomous Continual-Learning Framework for EV Charging}
+\title{Closed-Loop Continual Learning for EV Charging:\\
+From Autonomous Adaptation to Measured Savings}
 
 \author{
 \IEEEauthorblockN{
@@ -72,23 +73,54 @@ electric vehicle charging, concept drift, commercial energy site
 \section{Introduction}
 \label{sec:intro}
 
-The rapid transformation of power systems towards decentralised, renewable-based, and user-centric architectures has accelerated the deployment of commercial energy sites that combine distributed energy resources, photovoltaic (PV) generation, electric vehicles (EVs), and intelligent energy-management systems in a highly interconnected environment. In such systems, accurate forecasting of renewable generation, electricity demand, and EV charging behaviour has become a fundamental requirement for reliable and cost-effective operation. Advanced artificial intelligence (AI) methods, particularly deep learning models, have demonstrated significant potential in capturing complex temporal dependencies and nonlinear relationships within energy data, enabling improved forecasting accuracy and supporting autonomous decision-making processes.
+A forecaster deployed at a commercial energy site is one link in a loop.
+Predictions of photovoltaic (PV) generation and electric-vehicle (EV) charging
+demand feed an optimisation-based controller; the controller issues setpoints
+that move real power; the resulting consumption is metered and billed; and that
+measurement is the only evidence the loop produced anything. Most deployed
+forecasters, however, are static---trained once and maintained without
+adaptation---which is untenable where seasons turn, behaviour shifts and
+charging infrastructure is added, so that the data distribution drifts away
+from the one the model was fitted to~\cite{gama2014survey}. Continual
+learning (CL) addresses that drift, and the trade-off it must manage is between
+plasticity, adapting to new conditions, and stability, retaining regimes that
+are rare but operationally
+important~\cite{mccloskey1989catastrophic,french1999catastrophic}.
 
-Despite their remarkable performance during development and evaluation phases, most AI models deployed in energy systems remain fundamentally static: they are trained once using historical datasets and subsequently maintained without continuous adaptation. This assumption is increasingly unrealistic at real-world commercial energy sites, where operating conditions continuously evolve due to seasonal variations, changing weather patterns, modifications in consumer behaviour, expansion of charging infrastructures, and fluctuations in electricity market conditions. Consequently, the statistical distribution of incoming data progressively diverges from the original training distribution, resulting in a degradation of model performance over time, a phenomenon broadly known as \emph{concept drift}~\cite{gama2014survey}.
+What is almost never closed is the loop itself. CL for energy forecasting is
+evaluated on held-out error; controllers are evaluated on the savings their
+optimiser expects; and the two are reported separately. Neither figure touches
+a meter. A saving computed by subtracting an optimised cost from an unmanaged
+one, with both terms evaluated on the \emph{forecast}, is produced identically
+by a system working perfectly and by one whose setpoints never leave the
+process, whose price feed has frozen, or whose forecaster is being served
+features it was not trained on. We know this because we built such a system and
+then instrumented it to find out.
 
-Several conventional strategies are commonly adopted to mitigate this degradation, yet each presents significant limitations for continuously operating systems. \emph{Periodic full-history retraining} restores predictive performance by reprocessing the complete historical dataset---thereby retaining seasonal knowledge---but requires substantial and growing computational resources as new observations accumulate. \emph{Rolling-window retraining} restores efficiency by training only on a recent window, but discards the seasonal knowledge encoded in older data. \emph{Na\"ive fine-tuning} on recent data provides a more efficient adaptation mechanism but may lead to \emph{catastrophic forgetting}, where previously acquired knowledge is overwritten by newly observed patterns. This phenomenon is particularly critical in energy applications, as rare but operationally significant regimes, such as seasonal PV generation variations, unusual weather conditions, or atypical EV charging behaviours, may become underrepresented in recent datasets and consequently forgotten by the adapted model~\cite{mccloskey1989catastrophic,french1999catastrophic}. Therefore, maintaining an effective balance between adaptation to new operating conditions and preservation of previously acquired knowledge remains a fundamental challenge for long-term AI deployment in energy systems.
+This paper reports a \emph{closed-loop} continual-learning architecture
+operating at a commercial site in Dudelange, Luxembourg, and measures every
+arrow of the loop: nightly autonomous adaptation of a PV LSTM and an EV
+CNN--LSTM, a validation gate that decides whether each candidate is promoted, a
+convex model-predictive controller that turns the promoted forecasts into
+charging setpoints under real ENTSO-E day-ahead prices, and a settlement path
+that reconciles the resulting schedule against metered demand. Closing it
+required measuring the parts of the system that had never been observed, and
+what that measurement found is as much the contribution as the architecture.
 
-This trade-off between plasticity and stability represents one of the central challenges in developing AI systems capable of long-term adaptation. Addressing this challenge requires learning mechanisms that can continuously incorporate new information while preserving previously acquired knowledge, rather than relying on isolated retraining cycles.
+Three results follow. \emph{First}, the gap between reported and delivered
+economics is large: over $21$ days on real prices, planned savings average
+$11.5\%$ of the bill and settled savings $6.0\%$. \emph{Second}, closing the
+loop surfaced thirteen defects, all but one invisible to any alarm, which share
+a structure --- a component unable to do its job answers plausibly instead of
+refusing. \emph{Third}, on the learning side a $240$-job multi-seed study shows
+the deployed proximal regulariser does not prevent seasonal forgetting while
+bounded replay does, identifying coverage of the past input distribution rather
+than parameter anchoring as the operative mechanism.
 
-Continual learning (CL) has emerged as a promising paradigm to achieve this objective by enabling machine learning models to progressively acquire knowledge from incoming data while maintaining performance on previously observed operating regimes. Among existing approaches, regularisation-based methods derived from Elastic Weight Consolidation (EWC) mitigate catastrophic forgetting by constraining updates to model parameters according to their estimated importance for previously learned knowledge. The method we deploy is \emph{EWC-inspired}: it retains EWC's proximal quadratic penalty but, in practice, estimates parameter importance using a Memory Aware Synapses (MAS)-style output-sensitivity proxy rather than the Fisher information (Section~\ref{sec:ewc}). By introducing a stability constraint during adaptation, this proximal regularisation provides a mechanism to balance model plasticity and knowledge preservation at low computational overhead.
-
-However, despite significant advances in theoretical formulations and benchmark evaluations, most existing continual learning studies remain restricted to controlled offline environments involving predefined datasets and artificial sequential learning tasks. The transition from these experimental settings to continuously operating cyber-physical energy systems remains largely unexplored. In particular, the integration of continual learning with practical requirements such as cloud-based model adaptation, automated validation, model lifecycle management, data quality monitoring, and interaction with real-time controllers remains an open research challenge.
-
-Deploying continual learning at real commercial energy sites requires addressing challenges that extend beyond the learning algorithm itself. A practical adaptation framework must integrate data acquisition, model monitoring, cloud-based training pipelines, validation mechanisms, model version management, deployment strategies, and reliable interaction with operational control systems. Without these components, continual learning remains disconnected from the requirements of cyber-physical energy applications, where inappropriate model updates may directly affect physical decisions such as EV charging schedules, energy trading strategies, or grid balancing actions.
-
-Furthermore, the integration of adaptive forecasting models with operational optimisation frameworks introduces additional challenges. Forecast updates must not only improve predictive accuracy but also generate measurable benefits at the decision-making level. At such sites, forecasting models are commonly coupled with optimisation-based controllers, such as Model Predictive Control (MPC), where prediction errors directly influence scheduling decisions, economic performance, and compliance with grid constraints. Therefore, an effective continual learning system must demonstrate that model adaptation translates into improved operational outcomes rather than solely statistical improvements in forecasting metrics.
-
-This paper addresses these challenges through the design, deployment, and evaluation of a continual learning framework for autonomous operation of a commercial energy site. The proposed framework integrates adaptive forecasting, cloud-based model lifecycle management, automated validation, and real-time control deployment within a real energy site in Luxembourg. Its central contribution is not a novel CL algorithm but an operational architecture and real-site case study for safe autonomous adaptation of MPC-coupled forecasters. The main contributions of this work are summarised as follows:
+Our central contribution is therefore not a new CL algorithm but an operational
+architecture in which adaptation is connected to decisions and to measured
+outcomes, together with the measurement practices that connection turns out to
+require:
 
 \begin{enumerate}
 
@@ -111,157 +143,47 @@ The remainder of this paper is organised as follows. Section II reviews related 
 \section{Related Work}
 \label{sec:related}
 
-\subsection{Machine Learning for Energy Forecasting}
-\label{sec:related_forecasting}
+\subsection{Forecasting and continual learning in energy}
+Short-term PV and load forecasting is dominated by recurrent and hybrid
+convolutional--recurrent models~\cite{hochreiter1997long}; attention-based
+architectures~\cite{vaswani2017attention,lim2021temporal} improve long-horizon
+accuracy at data and parameter costs unfavourable for a single site re-adapted
+nightly. Across that literature the forecaster is assumed fixed after
+deployment.
 
-Deep learning architectures have become central tools for short-term energy
-forecasting due to their ability to learn complex nonlinear relationships
-from historical measurements. Among these approaches, Long Short-Term
-Memory (LSTM) networks~\cite{hochreiter1997long} have been extensively
-adopted for renewable generation and demand forecasting because their
-gating mechanisms enable the preservation of relevant temporal information
-over long sequences. This capability is particularly important for
-energy applications, where future generation and consumption patterns are
-strongly influenced by historical trajectories, periodic behaviours, and
-slowly evolving environmental conditions.
+Continual learning addresses the stability--plasticity dilemma through three
+families. Regularisation methods penalise movement of important parameters:
+EWC~\cite{kirkpatrick2017overcoming} weights an $L_2$ anchor by the diagonal
+Fisher information --- an imperfect curvature
+proxy~\cite{kunstner2019limitations} --- while Memory Aware
+Synapses~\cite{aljundi2018memory} measures output sensitivity without labels,
+which is closer to common practical implementations, including ours, than is
+usually acknowledged. Rehearsal methods store or synthesise past
+data~\cite{lopezpaz2017gradient,chaudhry2019efficient,shin2017continual},
+resisting forgetting at a storage cost; architectural methods isolate
+task-specific capacity~\cite{rusu2016progressive}. A comparative study on
+building-energy forecasting~\cite{li2024building} reports regularisation as the
+best stability--plasticity compromise in this data regime, which is what
+motivated the deployed choice --- and which
+Section~\ref{sec:results_seeds} does not reproduce over a seasonal stream.
+Coupling forecasts to a downstream optimiser connects to
+decision-focused learning~\cite{ng2024cost,zenke2017continual}.
 
-However, commercial energy sites involve heterogeneous forecasting problems
-with different temporal characteristics. PV generation forecasting is
-mainly driven by meteorological dynamics and daily solar cycles, whereas
-EV charging demand exhibits a combination of short-term stochastic events
-and longer-term behavioural patterns. To capture these multi-scale
-dependencies, hybrid convolutional-recurrent models have been increasingly
-investigated. By combining one-dimensional convolutional layers for
-extracting local variations with recurrent structures for modelling
-temporal dependencies, CNN-LSTM architectures provide an effective
-representation of complex demand profiles characterized by both abrupt
-charging events and periodic usage patterns.
-
-More recently, attention-based models, including Transformers
-~\cite{vaswani2017attention} and temporal fusion architectures
-~\cite{lim2021temporal}, have achieved competitive performance in
-long-horizon forecasting by learning dynamic relationships across time
-steps. Nevertheless, their adoption in continuously adapting energy
-systems introduces additional challenges, including increased model
-complexity, larger computational requirements, and higher data demands
-for reliable adaptation. These aspects become particularly relevant in
-continual learning scenarios, where forecasting models must be repeatedly
-updated under operational constraints while maintaining previously
-acquired knowledge. Therefore, compact recurrent and convolutional-
-recurrent architectures remain attractive solutions for real-world
-commercial energy sites, offering a favourable balance between forecasting
-capability, adaptation efficiency, and deployment feasibility.
-Across this literature, a common assumption is that the forecasting
-model, once trained, remains fixed during deployment, or is periodically
-retrained from scratch without explicit mechanisms to preserve
-previously learned regimes.
-
-\subsection{Continual Learning}
-\label{sec:related_cl}
-
-Continual learning methods are commonly grouped into three families.
-\emph{Regularisation-based} methods penalise changes to parameters
-estimated to be important for previously learned tasks. Among these,
-Elastic Weight Consolidation (EWC)~\cite{kirkpatrick2017overcoming}
-preserves previously acquired knowledge by introducing a quadratic
-regularisation term, where parameter importance is estimated using the
-diagonal approximation of the Fisher Information Matrix, obtained from a
-Laplace approximation of the posterior distribution over model
-parameters. The diagonal Fisher information is defined as
-
-\begin{equation}
-F_i =
-\mathbb{E}_{(x,y)\sim\mathcal{D}_{\mathrm{old}}}
-\left[
-\left(
-\frac{\partial
-\log p(y\,|\,x,\boldsymbol{\theta}^{*})}
-{\partial \theta_i}
-\right)^2
-\right],
-\label{eq:fisher}
-\end{equation}
-
-where $\boldsymbol{\theta}^{*}$ denotes the parameters learned from the
-previous data distribution, and $F_i$ represents the estimated
-importance of parameter $\theta_i$. In practice, the expectation is
-approximated empirically using samples from the previous training data.
-Parameters associated with larger Fisher values have a greater influence
-on the model likelihood and are therefore penalised more strongly during
-subsequent adaptation. The resulting EWC optimisation objective is
-
-\begin{equation}
-\mathcal{L}_{\mathrm{EWC}}
-=
-\mathcal{L}_{\mathrm{new}}
-+
-\frac{\lambda}{2}
-\sum_i
-F_i
-\left(
-\theta_i-\theta_i^{*}
-\right)^2,
-\label{eq:ewc}
-\end{equation}
-
-where $\mathcal{L}_{\mathrm{new}}$ is the loss computed on the incoming
-data, $\theta_i^{*}$ denotes the previously learned parameter values,
-and $\lambda$ controls the stability--plasticity trade-off by balancing
-adaptation to new information against preservation of previously
-acquired knowledge.
-
-Alternative regularisation-based approaches estimate parameter
-importance differently. Synaptic Intelligence (SI)~\cite{zenke2017continual}
-accumulates an importance measure online during training, avoiding a
-separate Fisher-estimation pass. Memory Aware Synapses
-(MAS)~\cite{aljundi2018memory} instead measures importance through the
-sensitivity of the model's \emph{output} rather than its loss, and
-notably does not require ground-truth labels for importance estimation, a property more representative of practical
-deployments, including our own, than is typically acknowledged.
-
-\emph{Replay-based} methods, such as Gradient Episodic
-Memory~\cite{lopezpaz2017gradient} and Deep Generative
-Replay~\cite{shin2017continual}, interleave stored or synthesised past
-examples with incoming data. Although these approaches provide strong
-empirical resistance to catastrophic forgetting, they require either
-memory buffers or generative models whose computational and storage
-requirements increase with the number of operating regimes to be
-preserved, making them less suitable for continuously evolving energy
-systems that accumulate years of telemetry.
-
-\emph{Architecture-based} methods allocate additional model capacity for
-each new task~\cite{rusu2016progressive}. While effective for discrete
-task sequences, they are generally less appropriate for the continuously
-drifting single-task forecasting scenario considered in this work.
-
-Comparative studies of continual learning applied to building and energy
-load forecasting~\cite{li2024building} indicate that
-regularisation-based methods, particularly EWC and SI, provide one of
-the most favourable stability--plasticity trade-offs for non-stationary
-energy time series. Cost-sensitive extensions have also been
-proposed~\cite{ng2024cost}, weighting parameter adaptation according to
-the economic importance of different operating regimes.
-
-
-
-\subsection{Research Gap}
+\subsection{What is not measured, and the gap}
 \label{sec:gap}
+Three omissions are near-universal and together they are this paper's target.
+\emph{First}, energy-domain CL is evaluated offline: nightly adaptation,
+automated validation, fail-safe promotion and deployment into a live service
+are rarely demonstrated under real conditions. \emph{Second}, forecast quality
+is reported in isolation from the controller's economic outcome, and where an
+economic figure does appear it is a \emph{planned} one, computed on the forecast
+with no meter in the arithmetic --- so it cannot distinguish a working system
+from a broken one. \emph{Third}, production failure modes are seldom reported,
+yet they are a primary barrier to adoption and, as
+Section~\ref{sec:defects} shows, they are largely invisible to the metrics the
+field does report. We close all three by connecting adaptation to decisions and
+decisions to metered outcomes, and by reporting what that connection revealed.
 
-Existing studies have made significant advances in energy forecasting and continual learning independently; however, their combination into autonomous operational pipelines remains insufficiently explored. Current forecasting approaches generally rely on static models that require manual retraining when the underlying data distribution changes. Conversely, continual learning methods are often evaluated using offline datasets, without addressing the practical requirements of long-term autonomous operation, such as scheduled adaptation, validation of newly trained models, prevention of performance degradation, and automated recovery mechanisms.
-
-Furthermore, most existing works evaluate continual learning performance using forecasting metrics alone, without assessing whether continuously adapted models improve downstream energy management decisions. Therefore, there remains a lack of integrated frameworks that connect continual learning-based forecasting adaptation with real-time commercial energy site operation.
-
-To address this gap, this work develops and validates an end-to-end
-autonomous continual learning framework that integrates nightly
-regularised model adaptation, automated tolerance-gated validation and
-model promotion, fail-safe retention, and seamless interaction with an
-MPC-based real-time energy management system. The framework is evaluated
-using continuous operational data from a real commercial energy site,
-demonstrating its ability to achieve sustained self-adaptation under
-non-stationary operating conditions.
-
-
-% ============================================================================
 \section{System Architecture}
 \label{sec:architecture}
 
@@ -279,13 +201,6 @@ single prosumer site behind one grid connection, we describe it as a
 commercial energy site rather than an energy community, since it lacks
 the multi-member, shared-allocation, and governance features of the
 latter.
-
-\subsection{Three-Loop Architecture}
-\label{sec:three_loop}
-
-The deployed system operates three asynchronous control loops at
-distinct time scales, sharing a common data layer and model registry
-(Fig.~\ref{fig:overview}).
 
 \begin{figure*}[t]
 \centering
@@ -374,35 +289,35 @@ EWC-inspired regulariser and promotes validated improvements through a
 fail-safe gate.}
 \label{fig:overview}
 \end{figure*}
-\textbf{Loop 1 (Real-Time Energy Management).}
-During operation, the energy management layer continuously receives
-updated forecasts from the deployed AI models and integrates them into
-the MPC optimisation framework. The controller combines PV generation
-predictions, EV charging demand forecasts, weather information, and
-electricity prices to compute optimal charging setpoints. The resulting
-control actions are transmitted to the physical charging infrastructure
-through MQTT, enabling closed-loop interaction between prediction and
-operation.
 
-\textbf{Loop 2 (Data Acquisition and Context Update).}
-The autonomous pipeline continuously aggregates heterogeneous data
-streams required for forecasting adaptation and decision-making. These
-include smart-meter telemetry from the Leneda platform, meteorological
-variables and forecasts, and the electricity prices.
-The collected information is stored in the shared data layer, providing
-the evolving operational context used by both forecasting and control
-layers.
+\subsection{Three-Loop Architecture}
+\label{sec:loops}
+Three asynchronous loops run at distinct time scales over a shared PostgreSQL
+data layer and an S3 model registry (Fig.~\ref{fig:overview}). Their separation
+is what makes the loop closable: each writes what the next reads, and every
+hand-off is recorded.
 
-\textbf{Loop 3 (Continual Learning and Model Evolution).}
-A scheduled learning process enables autonomous adaptation of the
-forecasting models to newly observed operating conditions. Each night,
-two independent continual learning pipelines are triggered for PV
-generation and EV demand forecasting. The current production models are
-retrieved, updated using the most recent 90~days of operational data with
-the EWC-inspired output-sensitivity regulariser, and evaluated
-on a 7-day holdout. Only candidates that satisfy the tolerance-gated
-promotion criterion are deployed; otherwise, the previous validated
-model is retained (fail-safe retention).
+\emph{Loop~1, real-time control, every $15$~min.} A containerised service
+downloads the current models --- serialised in ONNX for framework-agnostic
+inference --- queries the latest weather forecast and day-ahead price, solves
+the MPC programme of Section~\ref{sec:mpc}, publishes setpoints over MQTT and
+persists the plan, the resulting KPIs and the forecast horizon.
+
+\emph{Loop~2, daily ingestion.} Smart-meter telemetry from the Luxembourg
+national platform, Open-Meteo weather and ENTSO-E day-ahead prices are written
+to the shared data layer once a day.
+
+\emph{Loop~3, nightly continual learning.} A scheduled trigger launches two
+parallel jobs, one per forecaster. Each downloads the model currently in
+production, extracts the most recent $90$~days, adapts it under the
+output-sensitivity regulariser of Section~\ref{sec:ewc}, validates the
+candidate on a held-out $7$~days and, only if the gate of
+Section~\ref{sec:validation_gate} passes, exports and promotes it --- writing to
+the exact registry keys Loop~1 reads, so a promotion changes what the controller
+serves on its next cycle with no redeployment. This loop is the paper's central
+object, and Section~\ref{sec:results_deployment} reports the first scheduled
+cycle in which it rejected one candidate and promoted the other.
+
 \subsection{Dataset and Data Layer Organisation}
 \label{sec:dataset}
 
@@ -450,178 +365,40 @@ Section~\ref{sec:defects}.
 
 \subsection{Problem Statement}
 \label{sec:problem}
-
-Consider a discrete-time energy management system operating at resolution
-$\Delta t = 15$~min. At each decision epoch $t_0$, the system observes
-a history of measurements and must commit to a schedule of control
-actions over a planning horizon of $H = 96$ steps (24~hours).
-
-Let $\mathbf{y}^{\mathrm{PV}} = (y_1^{\mathrm{PV}}, \ldots, y_H^{\mathrm{PV}}) \in \mathbb{R}^H$
-denote the true (unknown at decision time) PV generation profile, and
-$\mathbf{y}^{\mathrm{EV}_j} \in \mathbb{R}^H$ the true demand profile
-of EV charging group $j \in \{1, 2\}$. Let $\boldsymbol{\pi} = (\pi_1,
-\ldots, \pi_H) \in \mathbb{R}^H$ denote the day-ahead electricity
-prices, assumed known at $t_0$.
-
-A \emph{forecaster} $f_{\boldsymbol{\theta}}$, parameterised by
-$\boldsymbol{\theta} \in \mathbb{R}^n$, maps observable features
-$\mathbf{x}_{t_0}$ (historical telemetry, weather forecasts, calendar
-features) to predictions:
-\begin{equation}
-    \hat{\mathbf{y}} = f_{\boldsymbol{\theta}}(\mathbf{x}_{t_0})
-    \label{eq:forecaster}
-\end{equation}
-
-A \emph{Model Predictive Controller} (MPC) consumes these forecasts to
-produce optimal control actions $\mathbf{u}^* = g(\hat{\mathbf{y}},
-\boldsymbol{\pi})$, where $g$ solves a constrained optimisation
-programme. The resulting \emph{real economic cost}, evaluated against
-the true (realised) profiles, is:
-\begin{equation}
-    C_{\mathrm{real}}(\boldsymbol{\theta}) = h\bigl(
-        g(f_{\boldsymbol{\theta}}(\mathbf{x}_{t_0}), \boldsymbol{\pi}),\;
-        \mathbf{y}^{\mathrm{PV}},\;
-        \mathbf{y}^{\mathrm{EV}_1},\;
-        \mathbf{y}^{\mathrm{EV}_2},\;
-        \boldsymbol{\pi}
-    \bigr)
-    \label{eq:real_cost}
-\end{equation}
-The forecaster parameters $\boldsymbol{\theta}$ are not fixed: in a
-real-world deployment, the system receives new measurement batches
-$\mathcal{D}_1, \mathcal{D}_2, \ldots$ over time (e.g., one batch per
-day), and must update $\boldsymbol{\theta}$ to track evolving data
-distributions (concept drift) without losing knowledge of previously
-observed operating regimes. This is the \emph{continual learning}
-problem.
-
-Formally, we seek a parameter update rule
-$$\boldsymbol{\theta}_{k+1} = \mathcal{U}(\boldsymbol{\theta}_k,
-\mathcal{D}_{k+1})$$ such that:
-\begin{enumerate}
-    \item \textbf{Plasticity:} The forecaster adapts to new data 
-    $\mathcal{L}_{\mathrm{data}}(\boldsymbol{\theta}_{k+1},
-    \mathcal{D}_{k+1}) < \mathcal{L}_{\mathrm{data}}(
-    \boldsymbol{\theta}_k, \mathcal{D}_{k+1})$.
-    \item \textbf{Stability:} Performance on previous data does not
-    degrade catastrophically, 
-    $\mathcal{L}_{\mathrm{data}}(\boldsymbol{\theta}_{k+1},
-    \mathcal{D}_{1:k})$ remains bounded.
-    \item \textbf{Safety:} Only updates that pass a validation gate
-    are deployed to production (Section~\ref{sec:validation_gate}).
-\end{enumerate}
-
-\subsection{Notation}
-\label{sec:notation}
-
-\begin{table}[t]
-\centering
-\caption{Summary of notation}
-\label{tab:notation}
-\begin{tabular}{@{}cl@{}}
-\toprule
-\textbf{Symbol} & \textbf{Description} \\
-\midrule
-$\params \in \real^n$ & Neural network parameters \\
-$\paramsstar \equiv \params_A^*$ & Parameters after training on the previous batch \\
-$n$ & Total number of trainable parameters \\
-$H = 96$ & MPC planning horizon (24~h at 15-min resolution) \\
-$\Delta t = 0.25$~h & Time step duration \\
-$T_{\mathrm{PV}} = 96$ & PV lookback window (24~h) \\
-$T_{\mathrm{EV}} = 672$ & EV lookback window (7~days) \\
-$\mathcal{D}_k$ & Data batch at continual-learning step $k$ \\
-$\mathcal{D}_{\mathrm{hold}}$ & Held-out validation set (most recent 7~days) \\
-$\fisher \in \real^{n \times n}$ & Fisher Information Matrix (classical EWC) \\
-$\hat{F}_{ii}$ & Diagonal Fisher element (classical EWC) \\
-$\Omega_i$ & Output-sensitivity importance (deployed estimator) \\
-$\ewclambda$ & Proximal regularisation strength \\
-$\mathbf{u}_j \in \real^H$ & Setpoint delta vector, EV group $j$ \\
-$\pi_k$ & Day-ahead price at step $k$ (EUR/MWh) \\
-$\tau$ & Validation tolerance factor \\
-\bottomrule
-\end{tabular}
-\end{table}
+At each nightly cycle $k$ the system holds parameters $\params_{k-1}$ serving
+production and receives a window $\mathcal{D}_k$ of recent site data. It must
+produce $\params_k$ that predicts the coming horizon well (plasticity) without
+losing regimes seen earlier in the record (stability), and must decide
+autonomously whether $\params_k$ is fit to serve. Writing $\loss$ for the
+forecasting loss and $\mathcal{D}_{<k}$ for the earlier record, the adaptation
+problem is to reduce $\loss(\params_k; \mathcal{D}_k)$ without inflating
+$\loss(\params_k; \mathcal{D}_{<k})$, under the constraint that
+$\mathcal{D}_{<k}$ is not available in full --- storing the whole record is
+what periodic full-history retraining does, and its cost grows without bound.
+Sections~\ref{sec:ewc} and~\ref{sec:baselines} give the two mechanisms we
+compare for this, and Section~\ref{sec:results_seeds} measures them over a
+seasonal stream.
 
 \subsection{Forecasting Architectures}
-\label{sec:forecasters}
+\label{sec:architectures}
+Both forecasters are one-step predictors over a lookback window, with a dense
+head and a non-negativity projection on the output; the $96$-step, $24$-hour
+MPC horizon comes from recursive rollout. The PV model is an LSTM ($64$ hidden
+units) over a $24$-hour, $96$-step lookback of $11$ features --- PV power, six
+weather variables and four cyclic time encodings --- trained with mean squared
+error. The EV model prepends two 1-D convolutions (kernel $3$; $32$ and $64$
+filters) to an LSTM over a $7$-day, $672$-step lookback of $21$ features, and
+is trained with the Huber loss ($\delta = 0.5$), which is more robust to the
+heavy-tailed distribution of charging power. Neither architecture is a
+contribution of this paper: both are the models already in production, and they
+are described here only so the adaptation results can be read against them.
 
-\subsubsection{PV LSTM}
-
-The PV forecaster comprises an LSTM branch processing a lookback window
-$\mathbf{X}_{\mathrm{seq}}^{\mathrm{PV}} \in \real^{96 \times 11}$
-(PV power, six weather variables, four cyclic time encodings) and a
-dense branch processing next-step features $\mathbf{x}_{\mathrm{next}}^{\mathrm{PV}}
-\in \real^{10}$.\\ 
-The LSTM's final hidden state $\mathbf{h}_{96} \in
-\real^{64}$, after layer normalisation, is concatenated with
-$\mathbf{x}_{\mathrm{next}}^{\mathrm{PV}}$ and passed through a dense
-head with a final non-negativity projection:
-$$
-    \hat{y}^{\mathrm{PV}} = \max\!\bigl(0,\, W_3\,\sigma(W_2\,\sigma(W_1\,
-    [\tilde{\mathbf{h}} \,\|\, \mathbf{x}_{\mathrm{next}}^{\mathrm{PV}}]
-    + b_1) + b_2) + b_3\bigr)
-    \label{eq:pv_pred}
-$$
-trained with mean squared error:\\
-\begin{equation}
-\loss_{\mathrm{MSE}}(\params) = \tfrac{1}{N}\sum_i (y_i^{\mathrm{PV}} -
-\hat{y}_i^{\mathrm{PV}}(\params))^2.
-\label{eq:huber_loss1}
-\end{equation}
-\subsubsection{EV CNN-LSTM}
-
-The EV demand forecaster combines two 1D convolutional layers (kernel
-size~3, 32 and 64 filters) for local temporal pattern extraction with
-an LSTM for longer-range dependencies, operating on a 672-step (7-day)
-lookback with 21 features (aggregate EV power, four lag features, three
-rolling means, six weather variables, seven time encodings).The convolutional block computes:
-\begin{align}
-    \mathbf{Z}_1 &= \sigma\bigl(\mathrm{Conv1D}_{32,3}(\mathbf{X}_{\mathrm{seq}}^{\mathrm{EV}})\bigr)
-    \label{eq:conv1} \\
-    \mathbf{Z}_2 &= \sigma\bigl(\mathrm{Conv1D}_{64,3}(\mathbf{Z}_1)\bigr)
-    \label{eq:conv2}
-\end{align}
-The LSTM then processes the convolutional output:
-\begin{equation}
-    \mathbf{h}_{T_{\mathrm{EV}}} = \mathrm{LSTM}\bigl(\mathbf{Z}_2\bigr)
-        \in \mathbb{R}^{d_h}
-    \label{eq:lstm_ev}
-\end{equation}
-
-The prediction follows the same concatenation and dense-head pattern as
-the PV model, but uses the Huber loss instead of
-MSE, which is more robust to the spiky, heavy-tailed distribution of EV
-charging power:
-\begin{equation}
-    \mathcal{L}_{\mathrm{Huber}}(\boldsymbol{\theta}) = \frac{1}{N}
-    \sum_{i=1}^{N} \ell_\delta\bigl(y_i^{\mathrm{EV}} -
-    \hat{y}_i^{\mathrm{EV}}(\boldsymbol{\theta})\bigr)
-    \label{eq:huber_loss}
-\end{equation}
-where
-\begin{equation}
-    \ell_\delta(e) = \begin{cases}
-        \frac{1}{2} e^2 & \text{if } |e| \leq \delta \\
-        \delta\,|e| - \frac{\delta^2}{2} & \text{otherwise}
-    \end{cases}
-    \label{eq:huber_def}
-\end{equation}
-with $\delta = 0.5$. The Huber loss transitions smoothly from quadratic
-near zero (sensitive to small errors, like MSE) to linear for large
-errors (robust to outliers, like MAE), providing a principled tradeoff
-between efficiency and robustness.
-
-\subsubsection{Multi-Step Forecast Generation}
-Both models are one-step predictors, whereas the MPC requires a 96-step,
-24-hour trajectory (Section~\ref{sec:mpc}). This trajectory is produced
-by \emph{recursive (autoregressive) rollout}: each prediction is fed back
-as input for the next step. Consequently, the one-step holdout MAE
-reported in Section~\ref{sec:results} is an \emph{optimistic} proxy for
-24-hour trajectory quality, since recursive rollout compounds error. In
-production a physical clipping safeguard bounds the rolled-out
-trajectory, without which we observed exponential error growth over the
-horizon.
-
+Because the horizon is produced autoregressively, the one-step holdout error
+reported in Section~\ref{sec:results_forecasting} is an optimistic proxy for
+$24$-hour trajectory quality: rollout compounds error. In production a physical
+clipping safeguard bounds the trajectory, without which we observed exponential
+error growth over the horizon --- a defect recorded in
+Table~\ref{tab:defects}.
 
 \subsection{Output-Sensitivity Regularisation}
 \label{sec:ewc}
@@ -648,7 +425,7 @@ negative log-posterior, and under a well-specified likelihood at a mode that
 Hessian is approximated by the Fisher information. Retaining only its diagonal
 reduces storage from $O(n^2)$ to $O(n)$ --- decisive at $n = 78{,}337$ for the
 EV model --- and yields the familiar per-parameter spring of
-Eq.~\eqref{eq:ewc}. That derivation motivates the \emph{form} of the penalty
+Eq.~\eqref{eq:ewc_loss}. That derivation motivates the \emph{form} of the penalty
 and we adopt it on those grounds; we refer the reader to Kirkpatrick
 \emph{et~al.}~\cite{kirkpatrick2017overcoming} and to the curvature analyses
 of~\cite{kunstner2019limitations} for its full statement and its limits.
@@ -763,9 +540,9 @@ Fisher, yielding the output-sensitivity regularisation (OSR) objective:
 \label{eq:ewc_loss}
 \end{equation}
 
-where $\loss_{\mathrm{data}}$ corresponds to the forecasting loss
-defined in Eq.~\eqref{eq:huber_loss1} for PV generation or
-Eq.~\eqref{eq:huber_loss} for EV demand prediction. The parameters
+where $\loss_{\mathrm{data}}$ is the forecasting loss of
+Section~\ref{sec:architectures} --- mean squared error for PV, Huber
+($\delta = 0.5$) for EV. The parameters
 $\theta_{A,i}^{*}$ represent the previously learned model parameters,
 while $\Omega_{i}$ denotes the estimated importance of parameter
 $\theta_i$ obtained from the output-sensitivity estimator. Replacing the
@@ -778,35 +555,16 @@ trade-off by regulating the strength of the constraint imposed on
 previously learned parameters. In this deployment, $\ewclambda=1000$ was
 selected empirically to balance adaptation to new operating conditions
 with preservation of previously acquired forecasting behaviour.
-\subsubsection{Gradient Dynamics}
-
-The gradient of Eq.~\eqref{eq:ewc_loss} with respect to a single
-parameter,
-\begin{equation}
-    \frac{\partial \loss_{\mathrm{OSR}}}{\partial \theta_i} =
-    \underbrace{\frac{\partial \loss_{\mathrm{data}}}{\partial \theta_i}}_{\text{data pressure}}
-    + \underbrace{\ewclambda\, \Omega_{i}\,(\theta_i - \theta_{A,i}^*)}_{\text{elastic restoring force}}
-    \label{eq:gradient}
-\end{equation}
-behaves as a spring connecting each parameter to its previous value with
-stiffness $\ewclambda \Omega_{i}$. When $\Omega_{i}\approx 0$, the
-restoring force vanishes and $\theta_i$ adapts freely (full plasticity);
-when $\Omega_{i}$ is large, deviation from $\theta_{A,i}^*$ is
-increasingly penalised (stability protection proportional to both
-importance and drift). This anisotropic regularisation is the key
-advantage over a na\"ive $L_2$ penalty
-$\tfrac{\lambda}{2}\|\params-\paramsstar\|^2$, which restricts all
-parameters equally regardless of their importance, needlessly
-sacrificing plasticity where it is safe to allow it.
-
-\subsubsection{Limiting Behaviour}
-
-As $\ewclambda \to \infty$, the optimum is $\params = \paramsstar$
-(no adaptation: maximal stability, zero plasticity). As
-$\ewclambda \to 0$, training reduces to na\"ive fine-tuning (maximal
-plasticity, catastrophic forgetting). We select $\ewclambda = 1000$
-conservatively, reflecting a production context in which a forecast
-regression carries direct financial consequences.
+\subsubsection{What the penalty does, and its limits}
+The gradient of~\eqref{eq:ewc_loss} acts as a per-parameter spring of stiffness
+$\ewclambda$ times the importance: where importance is near zero the parameter
+adapts freely, and where it is large, deviation is penalised in proportion to
+importance and drift. As $\ewclambda \to \infty$ the model freezes; as
+$\ewclambda \to 0$ it reduces to naive fine-tuning. We set
+$\ewclambda = 1000$. Section~\ref{sec:results_seeds} measures what this buys
+over a seasonal stream, and the answer is nothing that bounded replay does not
+buy more cheaply --- a result we report rather than an outcome the derivation
+anticipates.
 
 \subsubsection{Training Algorithm}
 
@@ -910,27 +668,14 @@ within the validation horizon.
 
 
 
-\subsection{Statistical Basis for the Promotion Decision}
-\label{sec:statistical}
-
-Comparing two MAE point estimates on a finite holdout is subject to
-sampling variability; the standard error of the MAE estimator is
-approximately $\mathrm{SE}(\widehat{\mathrm{MAE}}) \approx
-\hat{\sigma}_{|e|}/\sqrt{N_h}$. For $N_h = 672$ and the absolute-error
-standard deviation observed for the EV model
-($\hat{\sigma}_{|e|}\approx 80$~kW), this gives
-$\mathrm{SE}\approx 3.1$~kW, small relative to the observed MAE
-improvement (${\approx}28.5$~kW), suggesting that this particular promotion
-decision is unlikely to be a mere artefact of holdout sampling noise. We
-stress, however, that this is an informal point estimate, not a formal
-statistical test: the tolerance gate compares two MAE values against a
-fixed margin. A more rigorous protocol would apply a paired test (e.g.,
-Wilcoxon signed-rank on per-timestep absolute errors), but a paired test
-accounts only for pairing---not for the strong serial dependence of
-forecast errors. A block bootstrap or a HAC-type correction would be more
-appropriate; we adopt the simpler tolerance-based gate for its
-computational simplicity in a nightly, fully automated pipeline, and note
-the time-series-aware refinement as an item for future work.
+\paragraph{What the tolerance does and does not guarantee}
+The $5\%$ margin accounts for holdout variability; it bounds but does not
+eliminate the risk of promoting a degraded model, and it is a relative test
+only --- a candidate is compared to its predecessor, never to a model-free
+baseline. Section~\ref{sec:defects} records what that omission cost. For the EV
+model the observed MAE differences exceed the estimated sampling uncertainty
+(standard error about $3.1$~kW), though a rigorous assessment on this
+autocorrelated series would require block bootstrap or HAC corrections.
 
 \subsection{Fail-Safe Retention}
 
@@ -1168,51 +913,21 @@ learning framework, three forecasting strategies are considered.
     mechanisms are complementary.
 \end{itemize}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{fig6_fisher_heatmap_v2-1.pdf}
-\caption{Output-sensitivity importance $\Omega$ by parameter type for the
-PV LSTM. Colours rank parameters within each column; values span several
-orders of magnitude, so cross-column magnitudes are not directly
-comparable.}
-\label{fig:fisher_heatmap}
-\end{figure}
+
 
 \section{Results}
 \label{sec:results}
-
-This section evaluates the proposed autonomous continual learning
-framework from four complementary perspectives. First, we assess the
-forecasting improvements achieved by the output-sensitivity adaptation
-mechanism. Second, a controlled experiment isolates the regulariser from
-na\"ive fine-tuning on an identical window, and a multi-seed analysis
-quantifies run-to-run variability. Third, we analyse the reliability of
-the autonomous deployment pipeline under real operational conditions.
-Finally, we quantify the impact of improved forecasts on downstream
-MPC-based energy management.
-
-Before presenting the forecasting results, we first examine the
-distribution of the output-sensitivity importance $\Omega$ used by the
-regulariser. As illustrated in Fig.~\ref{fig:fisher_heatmap}, these
-statistics indicate the relative importance assigned to different
-parameter groups of the PV LSTM model, giving qualitative insight into
-how the regulariser selectively constrains weight updates during
-continual adaptation.
-
-
-The figure shows that the kernel parameters exhibit the largest
-importance values, with a maximum reaching $1.1\times10^{-2}$, which
-\emph{suggests}---rather than confirms---that they encode information
-salient to the recent operating regime. In contrast, the recurrent
-kernel, bias, gamma, and beta parameters present substantially smaller
-values, allowing greater flexibility during adaptation. This
-interpretation should be read with caution: the importance values span
-several orders of magnitude, the colour scale ranks parameters within
-each column rather than across columns, and per-column maxima may be
-dominated by a small number of outliers. The distribution nonetheless
-illustrates that the regulariser does not penalise all weights uniformly,
-but instead constrains the parameters it estimates as most important
-while permitting less important ones to adapt.
+We report the loop arrow by arrow: forecasting accuracy under a single
+adaptation cycle (Section~\ref{sec:results_forecasting}); the regulariser
+against naive fine-tuning on an identical window
+(Section~\ref{sec:results_controlled}); retention over a $12$-cycle seasonal
+stream, the study that separates the mechanisms
+(Section~\ref{sec:results_seeds}); the pipeline's autonomous behaviour, including
+a gate decision observed in production
+(Section~\ref{sec:results_deployment}); and the controller's economics, planned
+and settled (Section~\ref{sec:results_mpc}). Unless stated otherwise
+$\ewclambda = 1000$, $M = 500$ importance samples and a promotion tolerance of
+$1.05$ apply throughout, these being the deployed values.
 
 \subsection{Forecasting Accuracy}
 \label{sec:results_forecasting}
